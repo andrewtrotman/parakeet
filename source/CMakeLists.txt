@@ -3,8 +3,11 @@
 # --------------
 #
 set(SOURCE
+	k_means.h
+	k_means.cpp
 	k_tree.h
 	k_tree.cpp
+	object.h
 	version.h
 	)
 
