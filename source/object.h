@@ -35,6 +35,24 @@ namespace k_tree
 				}
 
 			/*
+				OBJECT::NEW_OBJECT()
+				--------------------
+			*/
+			static object *new_object(void)
+				{
+				return new object();
+				}
+
+			/*
+				OBJECT::DELET_OBJECT()
+				--------------------
+			*/
+			static void delete_object(object *what)
+				{
+				delete what;
+				}
+
+			/*
 				OBJECT::DISTANCE_SQUARED()
 				--------------------------
 			*/
@@ -84,11 +102,11 @@ namespace k_tree
 	*/
 	inline std::ostream &operator<<(std::ostream &stream, const object &thing)
 		{
-		stream << "[";
+		stream << "[ ";
 		stream << thing.vector[0];
 		for (size_t dimension = 1; dimension < thing.DIMENSIONS; dimension++)
 			stream << ',' << thing.vector[dimension];
-		stream << "]";
+		stream << " ]";
 
 		return stream;
 		}

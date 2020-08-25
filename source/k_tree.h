@@ -11,7 +11,7 @@
 namespace k_tree
 	{
 	const double double_resolution = 0.000001;
-	const size_t MAX_NODE_WIDTH = 1024;
+	const size_t MAX_NODE_WIDTH = 10;
 
 	/*
 		CLASS K_TREE
@@ -21,16 +21,51 @@ namespace k_tree
 		{
 		public:
 			/*
+				CLASS K_TREE::DATA_CHILD
+				------------------------
+			*/
+			class node;
+			class data_child
+				{
+				public:
+					object *centroid;	// the centroid of the child
+					node *child;		// the pointer to the child node
+				public:
+					data_child()
+						{
+						/* Nothing */
+						}
+					data_child(object *centroid, node *child) :
+						centroid(centroid),
+						child(child)
+						{
+						/* Nothing */
+						}
+				};
+			static_assert(sizeof(data_child) == 16);		// necessary for the 128-bit (16-byte) compare exchange instruction on x64 and ARM64
+
+			/*
 				CLASS K_TREE::NODE
 				------------------
 			*/
 			class node
 				{
 				public:
-					size_t width;			/// the number of elements in the arrays that are actually used
-					object member[MAX_NODE_WIDTH];
-					node *children[MAX_NODE_WIDTH];
-					node *parent;
+					/*
+						ENUM NODE_TYPE
+						--------------
+					*/
+					enum node_type
+						{
+						leaf_node,									// is currently a leaf node of the k-tree
+						internal_node								// is and internal node (non-leaf) of the k-tree
+						};
+
+				public:
+					node_type type;								// Is this an internal node or a leaf node
+					size_t width;									// The number of elements in the arrays that are actually used
+					node *parent;									// The parent of this node
+					data_child pair[MAX_NODE_WIDTH];			// The pair of centroid and child pointer (the child has that centroid)
 
 				public:
 					/*
@@ -38,9 +73,57 @@ namespace k_tree
 						--------------------
 					*/
 					node() :
-						width(0)
+						type(leaf_node),
+						width(0),
+						parent(nullptr)
 						{
 						/* Nothing */
+						}
+
+					/*
+						K_TREE::NODE::NEW_NODE()
+						------------------------
+					*/
+					static node *new_node()
+						{
+						return new node();
+						}
+
+					/*
+						K_TREE::NODE::ADD()
+						-------------------
+					*/
+					data_child add(data_child &another)
+						{
+						if (width < MAX_NODE_WIDTH)
+							{
+							/*
+								We fit in the current leaf node
+							*/
+							pair[width] = another;
+							width++;
+
+							return data_child(nullptr, nullptr);
+							}
+						else
+							{
+							/*
+								We are a leaf that has become full so we must split and propegate upwards
+							*/
+							data_child child_0(object::new_object(), node::new_node());
+							data_child child_1(object::new_object(), node::new_node());
+
+							split(child_0, child_1);
+
+							// FIX
+							// FIX
+							// FIX
+							// FIX
+							// FIX
+							// FIX
+
+							return data_child(nullptr, nullptr);
+							}
 						}
 
 					/*
@@ -49,28 +132,28 @@ namespace k_tree
 						@return a reference to the closest node
 						@param distance_to_closest [out] The distance to the closest node
 					*/
-					object &closest(object what, double &distance_to_closest)
+					size_t closest(object &what) const
 						{
 						/*
 							Initialise to the distance to the first element in the list
 						*/
 						size_t node = 0;
-						double min_distance = object::distance_squared(what, member[0]);
+						double min_distance = object::distance_squared(what, *pair[0].centroid);
 
 						/*
 							Now check the distance to the others
 						*/
 						for (size_t which = 1; which < width; which++)
 							{
-							double distance = object::distance_squared(what, member[which]);
+							double distance = object::distance_squared(what, *pair[which].centroid);
 							if (distance < min_distance)
 								{
 								min_distance = distance;
 								node = which;
 								}
 							}
-						distance_to_closest = min_distance;
-						return member[node];
+
+						return node;
 						}
 
 					/*
@@ -78,7 +161,7 @@ namespace k_tree
 						---------------------
 						k-means clustering where k = 2
 					*/
-					void split(object *centroid)
+					void split(data_child &child_0, data_child child_1)
 						{
 						size_t assignment[MAX_NODE_WIDTH];
 						size_t first_cluster_size = 0;
@@ -86,17 +169,16 @@ namespace k_tree
 						double new_sum_distance = old_sum_distance / 2;
 
 						/*
-							Start with the first and last members (it should be 2 random elements)
+							Start with the first and last members (it should be 2 random elements).  This also guarantees that there will be at least on member in each cluster.
 						*/
-						centroid[0] = member[0];
-						centroid[1] = member[width - 1];
+						child_0.centroid = pair[0].centroid;
+						child_1.centroid = pair[width - 1].centroid;
 
 						/*
 							The stopping condition is that the sum squared distance from the cluster centres has become constant (so no more shuffling can happen)
 						*/
 						while (old_sum_distance > (1.0 + double_resolution) * new_sum_distance)
 							{
-//std::cout << "->" << centroid[0] << centroid[1] << "\n";
 							old_sum_distance = new_sum_distance;
 							new_sum_distance = 0;
 							first_cluster_size = 0;
@@ -105,8 +187,8 @@ namespace k_tree
 								/*
 									Compute the distance (squared) to each of the two new cluster centroids
 								*/
-								double distance_to_first = object::distance_squared(member[which], centroid[0]);
-								double distance_to_second = object::distance_squared(member[which], centroid[1]);
+								double distance_to_first = object::distance_squared(*pair[which].centroid, *child_0.centroid);
+								double distance_to_second = object::distance_squared(*pair[which].centroid, *child_1.centroid);
 
 								/*
 									Accumulate the stats for each new centroid (including the partial sum so that we can compute the centroid next)
@@ -127,28 +209,81 @@ namespace k_tree
 							/*
 								Rebuild then centroids, first compute the sum
 							*/
-							centroid[0].zero();
-							centroid[1].zero();
-//std::cout << "->" << centroid[0] << centroid[1] << "\n";
+							child_0.centroid->zero();
+							child_1.centroid->zero();
 							for (size_t which = 0; which < width; which++)
 								{
 								if (assignment[which] == 0)
-									centroid[0] += member[which];
+									*child_0.centroid += *pair[which].centroid;
 								else
-									centroid[1] += member[which];
+									*child_1.centroid += *pair[which].centroid;
 								}
-//std::cout << "->" << centroid[0] << centroid[1] << "\n";
 
 							/*
 								Rebuild then centroids, then average
 							*/
-							centroid[0] /= first_cluster_size;
-							centroid[1] /= width - first_cluster_size;
-//std::cout << "->" << centroid[0] << centroid[1] << "\n";
+							*child_0.centroid /= first_cluster_size;
+							*child_1.centroid /= width - first_cluster_size;
 							}
+
+						/*
+							At this point we have the new centroids and we have which node goes where in assignment[] so we populate the two new nodes
+						*/
+						size_t squash = 0;
+						size_t expand = 0;
+						for (size_t which = 0; which < width; which++)
+							{
+							if (assignment[which] == 0)
+								child_0.child->pair[squash++] = pair[which];
+							else
+								child_1.child->pair[expand++] = pair[which];
+							}
+						child_0.child->type = type;
+						child_0.child->width = squash;
+
+						child_1.child->type = type;
+						child_1.child->width = expand;
 						}
 				};
+
 		public:
+			data_child root;
+
+		public:
+			/*
+				K_TREE::K_TREE()
+				----------------
+			*/
+			k_tree() :
+				root(object::new_object(), node::new_node())
+				{
+				/* Nothing */
+				}
+
+			/*
+				K_TREE::GET_ROOT()
+				------------------
+			*/
+			data_child &get_root(void)
+				{
+				return root;
+				}
+
+			/*
+				K_TREE::PUSH_BACK()
+				-------------------
+			*/
+			data_child push_back(data_child &into, data_child &another)
+				{
+				if (into.child->type == node::leaf_node)
+					return into.child->add(another);
+				else
+					{
+					/*
+						We are an internal node so find the closest child and go there
+					*/
+					}
+				}
 
 			/*
 				K_TREE::UNITTEST()
@@ -156,27 +291,43 @@ namespace k_tree
 			*/
 			static void unittest(void)
 				{
-				node blob;
+				k_tree tree;
 
-				blob.width = 10;
-				for (size_t which = 0; which < blob.width; which++)
+				for (size_t which = 0; which < MAX_NODE_WIDTH; which++)
+					{
+					object &data = *object::new_object();
 					for (size_t dimension = 0; dimension < object::DIMENSIONS; dimension++)
-						if (which < blob.width / 2)
-							blob.member[which].vector[dimension] = (rand() % 20) / 10.0;
+						{
+						if (which < (MAX_NODE_WIDTH / 2))
+							data.vector[dimension] = (rand() % 20) / 10.0;
 						else
-							blob.member[which].vector[dimension] = ((rand() % 20) + 70) / 10.0;
+							data.vector[dimension] = ((rand() % 20) + 70) / 10.0;
 
-				object center[2];
-				blob.split(center);
+						}
+					data_child new_data(&data, nullptr);
+					tree.push_back(tree.get_root(), new_data);
+					}
 
+				std::cout << "SOURCE\n";
+				for (size_t which = 0; which < tree.get_root().child->width; which++)
+					std::cout << *tree.get_root().child->pair[which].centroid << "\n";
 
-				for (size_t which = 0; which < blob.width; which++)
-					std::cout << blob.member[which] << "\n";
+				data_child center_0(object::new_object(), node::new_node());
+				data_child center_1(object::new_object(), node::new_node());
+				tree.get_root().child->split(center_0, center_1);
+
+				std::cout << "CHILD 1\n";
+				for (size_t which = 0; which < center_0.child->width; which++)
+					std::cout << *center_0.child->pair[which].centroid << "\n";
+
+				std::cout << "CHILD 2\n";
+				for (size_t which = 0; which < center_1.child->width; which++)
+					std::cout << *center_1.child->pair[which].centroid << "\n";
 
 				std::cout << "\n";
 
-				std::cout << center[0] << "\n";
-				std::cout << center[1] << "\n";
+				std::cout << *center_0.centroid << "\n";
+				std::cout << *center_1.centroid << "\n";
 				}
 		};
 	}
