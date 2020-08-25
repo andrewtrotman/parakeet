@@ -45,7 +45,7 @@ namespace k_tree
 
 			/*
 				OBJECT::DELET_OBJECT()
-				--------------------
+				----------------------
 			*/
 			static void delete_object(object *what)
 				{

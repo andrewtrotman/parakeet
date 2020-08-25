@@ -11,7 +11,7 @@
 namespace k_tree
 	{
 	const double double_resolution = 0.000001;
-	const size_t MAX_NODE_WIDTH = 10;
+	const size_t MAX_NODE_WIDTH = 4;
 
 	/*
 		CLASS K_TREE
@@ -19,6 +19,7 @@ namespace k_tree
 	*/
 	class k_tree
 		{
+		friend std::ostream &operator<<(std::ostream &stream, const k_tree &thing);
 		public:
 			/*
 				CLASS K_TREE::DATA_CHILD
@@ -30,6 +31,7 @@ namespace k_tree
 				public:
 					object *centroid;	// the centroid of the child
 					node *child;		// the pointer to the child node
+
 				public:
 					data_child()
 						{
@@ -93,7 +95,22 @@ namespace k_tree
 						K_TREE::NODE::ADD()
 						-------------------
 					*/
-					data_child add(data_child &another)
+					data_child add(node **source, data_child &another)
+						{
+						if (type == leaf_node)
+							return add_to_leaf(source, another);
+						else
+							{
+							size_t descendant = closest(*another.centroid);
+							return pair[descendant].child->add(&pair[descendant].child, another);
+							}
+						}
+
+					/*
+						K_TREE::NODE::ADD_TO_LEAF()
+						---------------------------
+					*/
+					data_child add_to_leaf(node **source, data_child &another)
 						{
 						if (width < MAX_NODE_WIDTH)
 							{
@@ -115,14 +132,12 @@ namespace k_tree
 
 							split(child_0, child_1);
 
-							// FIX
-							// FIX
-							// FIX
-							// FIX
-							// FIX
-							// FIX
-
-							return data_child(nullptr, nullptr);
+							/*
+								What pointed to us gets updated to child_0
+								What's left over gets passed back
+							*/
+							*source = child_0.child;
+							return child_1;
 							}
 						}
 
@@ -161,7 +176,7 @@ namespace k_tree
 						---------------------
 						k-means clustering where k = 2
 					*/
-					void split(data_child &child_0, data_child child_1)
+					void split(data_child &child_0, data_child &child_1)
 						{
 						size_t assignment[MAX_NODE_WIDTH];
 						size_t first_cluster_size = 0;
@@ -171,8 +186,8 @@ namespace k_tree
 						/*
 							Start with the first and last members (it should be 2 random elements).  This also guarantees that there will be at least on member in each cluster.
 						*/
-						child_0.centroid = pair[0].centroid;
-						child_1.centroid = pair[width - 1].centroid;
+						*child_0.centroid = *pair[0].centroid;
+						*child_1.centroid = *pair[width - 1].centroid;
 
 						/*
 							The stopping condition is that the sum squared distance from the cluster centres has become constant (so no more shuffling can happen)
@@ -273,16 +288,38 @@ namespace k_tree
 				K_TREE::PUSH_BACK()
 				-------------------
 			*/
-			data_child push_back(data_child &into, data_child &another)
+			void push_back(object &another)
 				{
-				if (into.child->type == node::leaf_node)
-					return into.child->add(another);
-				else
+				data_child thing(&another, nullptr);
+				data_child result = root.child->add(&root.child, thing);
+				if (result.centroid != nullptr)
 					{
 					/*
-						We are an internal node so find the closest child and go there
+						Replace the root.  The old root and the one that doesn't fit form the new root (with 2 children)
 					*/
+					data_child new_root(nullptr, node::new_node());
+					new_root.child->add(&new_root.child, root);
+					new_root.child->add(&new_root.child, result);
+					new_root.child->type = node::internal_node;
+					root = new_root;
 					}
+				}
+
+			/*
+				K_TREE::TEXT_RENDER()
+				---------------------
+			*/
+			std::ostream &text_render(std::ostream &stream, const node &from, size_t depth = 0) const
+				{
+				for (size_t descendant = 0; descendant < from.width; descendant++)
+					{
+					for (size_t space = 0; space < depth; space++)
+						stream << ' ';
+					stream << *from.pair[descendant].centroid << "\n";
+					if (from.pair[descendant].child != NULL)
+						text_render(stream, *from.pair[descendant].child, depth + 1);
+					}
+				return stream;
 				}
 
 			/*
@@ -293,7 +330,9 @@ namespace k_tree
 				{
 				k_tree tree;
 
-				for (size_t which = 0; which < MAX_NODE_WIDTH; which++)
+std::cout << tree << "\n\n";
+
+				for (size_t which = 0; which < MAX_NODE_WIDTH * 3; which++)
 					{
 					object &data = *object::new_object();
 					for (size_t dimension = 0; dimension < object::DIMENSIONS; dimension++)
@@ -302,12 +341,12 @@ namespace k_tree
 							data.vector[dimension] = (rand() % 20) / 10.0;
 						else
 							data.vector[dimension] = ((rand() % 20) + 70) / 10.0;
-
 						}
-					data_child new_data(&data, nullptr);
-					tree.push_back(tree.get_root(), new_data);
+					tree.push_back(data);
+std::cout << tree << "\n";
 					}
 
+#ifdef NEVER
 				std::cout << "SOURCE\n";
 				for (size_t which = 0; which < tree.get_root().child->width; which++)
 					std::cout << *tree.get_root().child->pair[which].centroid << "\n";
@@ -328,6 +367,20 @@ namespace k_tree
 
 				std::cout << *center_0.centroid << "\n";
 				std::cout << *center_1.centroid << "\n";
+#endif
+
+				std::cout << "TREE\n";
+				std::cout << tree;
 				}
 		};
+
+	/*
+		OPERATOR<<()
+		------------
+	*/
+	inline std::ostream &operator<<(std::ostream &stream, const k_tree &thing)
+		{
+		return thing.text_render(stream, *thing.root.child);
+		}
+
 	}
