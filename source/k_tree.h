@@ -102,7 +102,11 @@ namespace k_tree
 						else
 							{
 							size_t descendant = closest(*another.centroid);
-							return pair[descendant].child->add(&pair[descendant], another);
+							data_child overflow = pair[descendant].child->add(&pair[descendant], another);
+							if (overflow.centroid != nullptr)
+								return add_to_leaf(source, overflow);
+							else
+								return data_child(nullptr, nullptr);
 							}
 						}
 
@@ -332,7 +336,7 @@ namespace k_tree
 
 std::cout << tree << "\n\n";
 
-				for (size_t which = 0; which < MAX_NODE_WIDTH * 3; which++)
+				for (size_t which = 0; which < MAX_NODE_WIDTH * 4; which++)
 					{
 					object &data = *object::new_object();
 					for (size_t dimension = 0; dimension < object::DIMENSIONS; dimension++)
