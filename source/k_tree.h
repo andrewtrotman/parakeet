@@ -4,9 +4,12 @@
 */
 #pragma once
 
+#include <stdint.h>
+
 #include <limits>
 
 #include "object.h"
+#include "allocator.h"
 
 namespace k_tree
 	{
@@ -86,25 +89,25 @@ namespace k_tree
 						K_TREE::NODE::NEW_NODE()
 						------------------------
 					*/
-					static node *new_node()
+					static node *new_node(allocator &allocator)
 						{
-						return new node();
+						return new ((node *)allocator.malloc(sizeof(node))) node();
 						}
 
 					/*
 						K_TREE::NODE::ADD()
 						-------------------
 					*/
-					data_child add(data_child *source, data_child &another)
+					data_child add(allocator &allocator, data_child *source, data_child &another)
 						{
 						if (type == leaf_node)
-							return add_to_leaf(source, another);
+							return add_to_leaf(allocator, source, another);
 						else
 							{
 							size_t descendant = closest(*another.centroid);
-							data_child overflow = pair[descendant].child->add(&pair[descendant], another);
+							data_child overflow = pair[descendant].child->add(allocator, &pair[descendant], another);
 							if (overflow.centroid != nullptr)
-								return add_to_leaf(source, overflow);
+								return add_to_leaf(allocator, source, overflow);
 							else
 								return data_child(nullptr, nullptr);
 							}
@@ -114,7 +117,7 @@ namespace k_tree
 						K_TREE::NODE::ADD_TO_LEAF()
 						---------------------------
 					*/
-					data_child add_to_leaf(data_child *source, data_child &another)
+					data_child add_to_leaf(allocator &allocator, data_child *source, data_child &another)
 						{
 						if (width < MAX_NODE_WIDTH)
 							{
@@ -131,8 +134,8 @@ namespace k_tree
 							/*
 								We are a leaf that has become full so we must split and propegate upwards
 							*/
-							data_child child_0(object::new_object(), node::new_node());
-							data_child child_1(object::new_object(), node::new_node());
+							data_child child_0(object::new_object(allocator), node::new_node(allocator));
+							data_child child_1(object::new_object(allocator), node::new_node(allocator));
 
 							split(child_0, child_1);
 
@@ -140,6 +143,7 @@ namespace k_tree
 								What pointed to us gets updated to child_0
 								What's left over gets passed back
 							*/
+//LEAK: the old value at *source (the node and the centroid).
 							*source = child_0;
 							return child_1;
 							}
@@ -226,7 +230,7 @@ namespace k_tree
 								}
 
 							/*
-								Rebuild then centroids, first compute the sum
+								Rebuild the centroids, first compute the sum
 							*/
 							child_0.centroid->zero();
 							child_1.centroid->zero();
@@ -273,8 +277,8 @@ namespace k_tree
 				K_TREE::K_TREE()
 				----------------
 			*/
-			k_tree() :
-				root(object::new_object(), node::new_node())
+			k_tree(allocator &allocator) :
+				root(object::new_object(allocator), node::new_node(allocator))
 				{
 				/* Nothing */
 				}
@@ -292,18 +296,18 @@ namespace k_tree
 				K_TREE::PUSH_BACK()
 				-------------------
 			*/
-			void push_back(object &another)
+			void push_back(allocator &allocator, object &another)
 				{
 				data_child thing(&another, nullptr);
-				data_child result = root.child->add(&root, thing);
+				data_child result = root.child->add(allocator, &root, thing);
 				if (result.centroid != nullptr)
 					{
 					/*
 						Replace the root.  The old root and the one that doesn't fit form the new root (with 2 children)
 					*/
-					data_child new_root(nullptr, node::new_node());
-					new_root.child->add(nullptr, root);
-					new_root.child->add(nullptr, result);
+					data_child new_root(nullptr, node::new_node(allocator));
+					new_root.child->add(allocator, nullptr, root);
+					new_root.child->add(allocator, nullptr, result);
 					new_root.child->type = node::internal_node;
 					root = new_root;
 					}

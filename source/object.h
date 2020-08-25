@@ -6,6 +6,8 @@
 
 #include <iostream>
 
+#include "allocator.h"
+
 namespace k_tree
 	{
 	/*
@@ -38,18 +40,9 @@ namespace k_tree
 				OBJECT::NEW_OBJECT()
 				--------------------
 			*/
-			static object *new_object(void)
+			static object *new_object(allocator &allocator)
 				{
-				return new object();
-				}
-
-			/*
-				OBJECT::DELET_OBJECT()
-				----------------------
-			*/
-			static void delete_object(object *what)
-				{
-				delete what;
+				return new ((object *)allocator.malloc(sizeof(object))) object();
 				}
 
 			/*

@@ -3,6 +3,7 @@
 # --------------
 #
 set(SOURCE
+	allocator.h
 	k_tree.h
 	k_tree.cpp
 	object.h

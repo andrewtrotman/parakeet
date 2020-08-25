@@ -2,8 +2,6 @@
 	K_TREE.CPP
 	----------
 */
-#pragma once
-
 #include "k_tree.h"
 
 namespace k_tree
@@ -14,13 +12,14 @@ namespace k_tree
 	*/
 	void k_tree::unittest(void)
 		{
-		k_tree tree;
+		allocator memory;
+		k_tree tree(memory);
 
 		std::cout << tree << "\n\n";
 
 		for (size_t which = 0; which < MAX_NODE_WIDTH * 4; which++)
 			{
-			object &data = *object::new_object();
+			object &data = *object::new_object(memory);
 			for (size_t dimension = 0; dimension < object::DIMENSIONS; dimension++)
 				{
 				if (which < (MAX_NODE_WIDTH / 2))
@@ -28,7 +27,7 @@ namespace k_tree
 				else
 					data.vector[dimension] = ((rand() % 20) + 70) / 10.0;
 				}
-			tree.push_back(data);
+			tree.push_back(memory, data);
 std::cout << tree << "\n";
 			}
 
