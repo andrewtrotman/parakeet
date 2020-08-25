@@ -2,10 +2,10 @@
 # CMAKELISTS.TXT
 # --------------
 
-project(K-TREE)
+project(k_tree)
 
 #
-#CMake verison 3.2 is required to set CMAKE_CXX_STANDARD to C++14.
+# CMake verison 3.2 is required to set CMAKE_CXX_STANDARD to C++17.
 #
 
 cmake_minimum_required (VERSION 3.2)
@@ -15,8 +15,7 @@ cmake_minimum_required (VERSION 3.2)
 message("Build Type:" ${CMAKE_BUILD_TYPE})
 
 #
-#	Set the debug flags based on the compiler
-#	_GLIBCXX_USE_CXX11_ABI=1 is necessary for g++ to allow C++ stateful custom allocators in std::string
+# Set the warning flags based on the compiler
 #
 if(WIN32)
  	add_definitions("/W3 /nologo")

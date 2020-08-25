@@ -325,57 +325,11 @@ namespace k_tree
 					}
 				return stream;
 				}
-
-			/*
-				K_TREE::UNITTEST()
-				------------------
-			*/
-			static void unittest(void)
-				{
-				k_tree tree;
-
-std::cout << tree << "\n\n";
-
-				for (size_t which = 0; which < MAX_NODE_WIDTH * 4; which++)
-					{
-					object &data = *object::new_object();
-					for (size_t dimension = 0; dimension < object::DIMENSIONS; dimension++)
-						{
-						if (which < (MAX_NODE_WIDTH / 2))
-							data.vector[dimension] = (rand() % 20) / 10.0;
-						else
-							data.vector[dimension] = ((rand() % 20) + 70) / 10.0;
-						}
-					tree.push_back(data);
-std::cout << tree << "\n";
-					}
-
-#ifdef NEVER
-				std::cout << "SOURCE\n";
-				for (size_t which = 0; which < tree.get_root().child->width; which++)
-					std::cout << *tree.get_root().child->pair[which].centroid << "\n";
-
-				data_child center_0(object::new_object(), node::new_node());
-				data_child center_1(object::new_object(), node::new_node());
-				tree.get_root().child->split(center_0, center_1);
-
-				std::cout << "CHILD 1\n";
-				for (size_t which = 0; which < center_0.child->width; which++)
-					std::cout << *center_0.child->pair[which].centroid << "\n";
-
-				std::cout << "CHILD 2\n";
-				for (size_t which = 0; which < center_1.child->width; which++)
-					std::cout << *center_1.child->pair[which].centroid << "\n";
-
-				std::cout << "\n";
-
-				std::cout << *center_0.centroid << "\n";
-				std::cout << *center_1.centroid << "\n";
-#endif
-
-				std::cout << "TREE\n";
-				std::cout << tree;
-				}
+		/*
+			UNITTEST()
+			----------
+		*/
+		static void unittest(void);
 		};
 
 	/*
