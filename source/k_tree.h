@@ -95,14 +95,14 @@ namespace k_tree
 						K_TREE::NODE::ADD()
 						-------------------
 					*/
-					data_child add(node **source, data_child &another)
+					data_child add(data_child *source, data_child &another)
 						{
 						if (type == leaf_node)
 							return add_to_leaf(source, another);
 						else
 							{
 							size_t descendant = closest(*another.centroid);
-							return pair[descendant].child->add(&pair[descendant].child, another);
+							return pair[descendant].child->add(&pair[descendant], another);
 							}
 						}
 
@@ -110,7 +110,7 @@ namespace k_tree
 						K_TREE::NODE::ADD_TO_LEAF()
 						---------------------------
 					*/
-					data_child add_to_leaf(node **source, data_child &another)
+					data_child add_to_leaf(data_child *source, data_child &another)
 						{
 						if (width < MAX_NODE_WIDTH)
 							{
@@ -136,7 +136,7 @@ namespace k_tree
 								What pointed to us gets updated to child_0
 								What's left over gets passed back
 							*/
-							*source = child_0.child;
+							*source = child_0;
 							return child_1;
 							}
 						}
@@ -291,15 +291,15 @@ namespace k_tree
 			void push_back(object &another)
 				{
 				data_child thing(&another, nullptr);
-				data_child result = root.child->add(&root.child, thing);
+				data_child result = root.child->add(&root, thing);
 				if (result.centroid != nullptr)
 					{
 					/*
 						Replace the root.  The old root and the one that doesn't fit form the new root (with 2 children)
 					*/
 					data_child new_root(nullptr, node::new_node());
-					new_root.child->add(&new_root.child, root);
-					new_root.child->add(&new_root.child, result);
+					new_root.child->add(nullptr, root);
+					new_root.child->add(nullptr, result);
 					new_root.child->type = node::internal_node;
 					root = new_root;
 					}
