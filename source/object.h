@@ -87,6 +87,16 @@ namespace k_tree
 				for (size_t dimension = 0; dimension < DIMENSIONS; dimension++)
 					vector[dimension] /= constant;
 				}
+
+			/*
+				OBJECT::SHIFT_BY()
+				------------------
+			*/
+			void shift_by(object &another, double number_of_descendants)
+				{
+				for (size_t dimension = 0; dimension < DIMENSIONS; dimension++)
+					vector[dimension] += (another.vector[dimension] - vector[dimension]) / number_of_descendants;
+				}
 		};
 
 	/*

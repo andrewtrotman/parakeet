@@ -34,7 +34,7 @@ namespace k_tree
 				{
 				public:
 					object *centroid;	// the centroid of the child
-					node *child;		// the pointer to the child node
+					node *child;		// the pointer to the child node (if this is a leaf node then child == NULL)
 
 				public:
 					data_child()
@@ -103,8 +103,14 @@ namespace k_tree
 						{
 						data_child answer;
 
+						/*
+							Increment the number of descendants
+						*/
 						number_of_descendants++;
 
+						/*
+							Insert into the tree
+						*/
 						if (type == leaf_node)
 							answer = add_to_leaf(allocator, source, another);
 						else
@@ -116,7 +122,13 @@ namespace k_tree
 							else
 								answer = data_child(nullptr, nullptr);
 							}
-							
+
+						/*
+							Update the centroid only when there hasn't been a split. If there was a split then it was updaten in split()
+FIX: THIS IS WRONG!
+						*/
+						if (answer.centroid != nullptr && source != nullptr && source->centroid != nullptr)
+							source->centroid->shift_by(*another.centroid, number_of_descendants);
 						return answer;
 						}
 
