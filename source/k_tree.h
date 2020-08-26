@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include <limits>
+#include <iomanip>
 
 #include "object.h"
 #include "allocator.h"
@@ -68,9 +69,9 @@ namespace k_tree
 
 				public:
 					node_type type;								// Is this an internal node or a leaf node
+					size_t number_of_descendants;				// The number of descendants of this node (so the root->number_of_descendants is the number of children)
 					size_t width;									// The number of elements in the arrays that are actually used
-					node *parent;									// The parent of this node
-					data_child pair[MAX_NODE_WIDTH];			// The pair of centroid and child pointer (the child has that centroid)
+					data_child pair[MAX_NODE_WIDTH + 1];	// The pair of centroid and child pointer (the child has that centroid)
 
 				public:
 					/*
@@ -79,8 +80,8 @@ namespace k_tree
 					*/
 					node() :
 						type(leaf_node),
-						width(0),
-						parent(nullptr)
+						number_of_descendants(0),
+						width(0)
 						{
 						/* Nothing */
 						}
@@ -100,17 +101,23 @@ namespace k_tree
 					*/
 					data_child add(allocator &allocator, data_child *source, data_child &another)
 						{
+						data_child answer;
+
+						number_of_descendants++;
+
 						if (type == leaf_node)
-							return add_to_leaf(allocator, source, another);
+							answer = add_to_leaf(allocator, source, another);
 						else
 							{
 							size_t descendant = closest(*another.centroid);
 							data_child overflow = pair[descendant].child->add(allocator, &pair[descendant], another);
 							if (overflow.centroid != nullptr)
-								return add_to_leaf(allocator, source, overflow);
+								answer = add_to_leaf(allocator, source, overflow);
 							else
-								return data_child(nullptr, nullptr);
+								answer = data_child(nullptr, nullptr);
 							}
+							
+						return answer;
 						}
 
 					/*
@@ -119,20 +126,23 @@ namespace k_tree
 					*/
 					data_child add_to_leaf(allocator &allocator, data_child *source, data_child &another)
 						{
-						if (width < MAX_NODE_WIDTH)
+						/*
+							First add
+						*/
+						pair[width] = another;
+						width++;
+
+						if (width <= MAX_NODE_WIDTH)
 							{
 							/*
-								We fit in the current leaf node
+								We fit fine so return success
 							*/
-							pair[width] = another;
-							width++;
-
 							return data_child(nullptr, nullptr);
 							}
 						else
 							{
 							/*
-								We are a leaf that has become full so we must split and propegate upwards
+								We are a leaf that has become over-full so we must split and propegate upwards
 							*/
 							data_child child_0(object::new_object(allocator), node::new_node(allocator));
 							data_child child_1(object::new_object(allocator), node::new_node(allocator));
@@ -186,13 +196,14 @@ namespace k_tree
 					*/
 					void split(data_child &child_0, data_child &child_1)
 						{
-						size_t assignment[MAX_NODE_WIDTH];
+						size_t tie_cluster = 0;				// in the case of a tie for distance flip between which cluster the point gets put in.
+						size_t assignment[MAX_NODE_WIDTH + 1];
 						size_t first_cluster_size = 0;
 						double old_sum_distance = std::numeric_limits<double>::max();;
 						double new_sum_distance = old_sum_distance / 2;
 
 						/*
-							Start with the first and last members (it should be 2 random elements).  This also guarantees that there will be at least on member in each cluster.
+							Start with the first two members of the current node.  It should be 2 random elements.
 						*/
 						*child_0.centroid = *pair[0].centroid;
 						*child_1.centroid = *pair[width - 1].centroid;
@@ -216,7 +227,9 @@ namespace k_tree
 								/*
 									Accumulate the stats for each new centroid (including the partial sum so that we can compute the centroid next)
 								*/
-								if (distance_to_first <= distance_to_second)
+								if (distance_to_first == distance_to_second)
+									tie_cluster = (tie_cluster + 1) & 1;					// alternate which cluster we put the point in if we get equidistant.  This should deal with the more likely case of the two cluster centers being the same point
+								if (distance_to_first < distance_to_second || (distance_to_first == distance_to_second && tie_cluster == 0))
 									{
 									assignment[which] = 0;
 									new_sum_distance += distance_to_first;
@@ -254,18 +267,32 @@ namespace k_tree
 						*/
 						size_t squash = 0;
 						size_t expand = 0;
+						size_t child_0_descendants = 0;
+						size_t child_1_descendants = 0;
 						for (size_t which = 0; which < width; which++)
 							{
 							if (assignment[which] == 0)
+								{
 								child_0.child->pair[squash++] = pair[which];
+								child_0_descendants += pair[which].child == 0 ? 1 : pair[which].child->number_of_descendants;
+								}
 							else
+								{
 								child_1.child->pair[expand++] = pair[which];
+								child_1_descendants += pair[which].child == 0 ? 1 : pair[which].child->number_of_descendants;
+								}
 							}
 						child_0.child->type = type;
 						child_0.child->width = squash;
 
 						child_1.child->type = type;
 						child_1.child->width = expand;
+
+						/*
+							Update the child count
+						*/
+						child_0.child->number_of_descendants = child_0_descendants;
+						child_1.child->number_of_descendants = child_1_descendants;
 						}
 				};
 
@@ -309,6 +336,7 @@ namespace k_tree
 					new_root.child->add(allocator, nullptr, root);
 					new_root.child->add(allocator, nullptr, result);
 					new_root.child->type = node::internal_node;
+					new_root.child->number_of_descendants = root.child->number_of_descendants + result.child->number_of_descendants;
 					root = new_root;
 					}
 				}
@@ -321,9 +349,15 @@ namespace k_tree
 				{
 				for (size_t descendant = 0; descendant < from.width; descendant++)
 					{
+					if (from.pair[descendant].child == NULL)
+						stream << "(" << std::setw(3) << 1 << "):";
+					else
+						stream << "(" << std::setw(3) << from.pair[descendant].child->number_of_descendants << "):";
+
 					for (size_t space = 0; space < depth; space++)
 						stream << ' ';
 					stream << *from.pair[descendant].centroid << "\n";
+
 					if (from.pair[descendant].child != NULL)
 						text_render(stream, *from.pair[descendant].child, depth + 1);
 					}

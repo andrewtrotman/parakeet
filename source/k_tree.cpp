@@ -27,6 +27,7 @@ namespace k_tree
 				else
 					data.vector[dimension] = ((rand() % 20) + 70) / 10.0;
 				}
+std::cout << "-> " << data << "\n";
 			tree.push_back(memory, data);
 std::cout << tree << "\n";
 			}
