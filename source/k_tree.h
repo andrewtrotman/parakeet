@@ -19,7 +19,7 @@ namespace k_tree2
 	class k_tree;
 	std::ostream &operator<<(std::ostream &stream, const k_tree &thing);
 	const double double_resolution = 0.000001;
-	const size_t max_children = 2;
+	const size_t max_children = 4;
 
 	/*
 		CLASS NODE
@@ -154,7 +154,8 @@ namespace k_tree2
 				{
 				size_t place_in;
 				size_t assignment[max_children + 1];
-				size_t first_cluster_size = 0;
+				size_t first_cluster_size;
+				size_t second_cluster_size;
 				double old_sum_distance = std::numeric_limits<double>::max();;
 				double new_sum_distance = old_sum_distance / 2;
 
@@ -179,7 +180,7 @@ namespace k_tree2
 					{
 					old_sum_distance = new_sum_distance;
 					new_sum_distance = 0;
-					first_cluster_size = 0;
+					first_cluster_size = second_cluster_size = 0;
 					for (size_t which = 0; which < children; which++)
 						{
 						/*
@@ -192,7 +193,7 @@ namespace k_tree2
 							Choose a cluster, tie_break on the size of the cluster (put in the smallest to avoid empty clusters)
 						*/
 						if (distance_to_first == distance_to_second)
-							place_in = child_1->children < child_2->children ? 1 : 2;
+							place_in = first_cluster_size < second_cluster_size ? 0 : 1;
 						else if (distance_to_first < distance_to_second)
 							place_in = 0;
 						else
@@ -211,6 +212,7 @@ namespace k_tree2
 							{
 							assignment[which] = 1;
 							new_sum_distance += distance_to_second;
+							second_cluster_size++;
 							}
 						}
 
@@ -231,7 +233,7 @@ namespace k_tree2
 						Rebuild then centroids: then average
 					*/
 					*centroid_1 /= first_cluster_size;
-					*centroid_2 /= children - first_cluster_size;
+					*centroid_2 /= second_cluster_size;
 					}
 
 				/*
@@ -286,6 +288,7 @@ namespace k_tree2
 					did_split = child[best_child]->add_to_node(data, child_1, child_2);
 					if (did_split)
 						{
+						did_split = false;
 						child[best_child] = *child_1;
 						child[children] = *child_2;
 						children++;
@@ -389,8 +392,9 @@ namespace k_tree2
 				{
 				k_tree tree;
 				allocator memory;
+				size_t total_adds = max_children * 4;
 
-				for (size_t which = 0; which < max_children * 4; which++)
+				for (size_t which = 0; which < total_adds; which++)
 					{
 					object &data = *object::new_object(memory);
 					for (size_t dimension = 0; dimension < object::DIMENSIONS; dimension++)
@@ -404,7 +408,7 @@ std::cout << "-----------> " << data << "\n";
 std::cout << tree << "\n";
 					}
 
-std::cout << "TREE\n";
+std::cout << "TREE (" << total_adds << " adds)\n";
 std::cout << tree;
 				}
 		};
