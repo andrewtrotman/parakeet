@@ -20,7 +20,7 @@ message("Build Type:" ${CMAKE_BUILD_TYPE})
 if(WIN32)
  	add_definitions("/W3 /nologo")
 else()
-	add_definitions("-Wall")
+	add_definitions("-Wall -march=native")
 endif()
 
 set(CMAKE_CXX_STANDARD 17)

@@ -7,6 +7,7 @@
 
 int main(int argc, char *argv[])
 	{
+//	k_tree::object::unittest();
 	k_tree::k_tree::unittest();
 
 	return 0;
