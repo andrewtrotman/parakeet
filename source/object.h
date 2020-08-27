@@ -19,7 +19,7 @@ namespace k_tree
 	class object
 		{
 		public:
-			static const int DIMENSIONS = 8;
+			static const int DIMENSIONS = 2;
 			double vector[DIMENSIONS];
 
 		public:
@@ -149,6 +149,14 @@ namespace k_tree
 				return total;
 				}
 
+			/*
+				OBJECT::DISTANCE_SQUARED()
+				--------------------------
+			*/
+			static double distance_squared(const object *a, const object *b)
+				{
+				return distance_squared(*a, *b);
+				}
 
 			/*
 				OBJECT::ZERO()
@@ -170,6 +178,16 @@ namespace k_tree
 				}
 
 			/*
+				OBJECT::OPERATOR+=()
+				--------------------
+			*/
+			void operator+=(const object *operand)
+				{
+				for (size_t dimension = 0; dimension < DIMENSIONS; dimension++)
+					vector[dimension] += operand->vector[dimension];
+				}
+
+			/*
 				OBJECT::OPERATOR/=()
 				--------------------
 			*/
@@ -180,13 +198,13 @@ namespace k_tree
 				}
 
 			/*
-				OBJECT::SHIFT_BY()
-				------------------
+				OBJECT::FUSED_MULTIPLY_ADD()
+				----------------------------
 			*/
-			void shift_by(object &another, double number_of_descendants)
+			void fused_multiply_add(object *operand, double factor)
 				{
 				for (size_t dimension = 0; dimension < DIMENSIONS; dimension++)
-					vector[dimension] += (another.vector[dimension] - vector[dimension]) / number_of_descendants;
+					vector[dimension] += operand->vector[dimension] * factor;
 				}
 
 			/*
