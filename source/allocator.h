@@ -1,6 +1,8 @@
 /*
 	ALLOCATOR.H
 	-----------
+	Copyright (c) 2020 Andrew Trotman
+	Released under the 2-clause BSD license (See:https://en.wikipedia.org/wiki/BSD_licenses)
 */
 #pragma once
 

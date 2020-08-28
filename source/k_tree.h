@@ -1,6 +1,8 @@
 /*
 	K_TREE.H
 	--------
+	Copyright (c) 2020 Andrew Trotman
+	Released under the 2-clause BSD license (See:https://en.wikipedia.org/wiki/BSD_licenses)
 */
 #pragma once
 
@@ -12,10 +14,8 @@
 #include "object.h"
 #include "allocator.h"
 
-namespace k_tree2
+namespace k_tree
 	{
-	typedef k_tree::object object;
-	typedef k_tree::allocator allocator;
 	class k_tree;
 	std::ostream &operator<<(std::ostream &stream, const k_tree &thing);
 	const double double_resolution = 0.000001;
@@ -140,7 +140,7 @@ namespace k_tree2
 				for (size_t which = 0; which < children; which++)
 					{
 					leaves_below_this_point += child[which]->leaves_below_this_point;
-					centroid->fused_multiply_add(child[which]->centroid, child[which]->leaves_below_this_point);
+					centroid->fused_multiply_add(*child[which]->centroid, child[which]->leaves_below_this_point);
 					}
 
 				*centroid /= leaves_below_this_point;
@@ -224,9 +224,9 @@ namespace k_tree2
 					for (size_t which = 0; which < children; which++)
 						{
 						if (assignment[which] == 0)
-							*centroid_1 += child[which]->centroid;
+							*centroid_1 += *child[which]->centroid;
 						else
-							*centroid_2 += child[which]->centroid;
+							*centroid_2 += *child[which]->centroid;
 						}
 
 					/*
@@ -388,29 +388,7 @@ namespace k_tree2
 				UNITTEST()
 				----------
 			*/
-			static void unittest(void)
-				{
-				k_tree tree;
-				allocator memory;
-				size_t total_adds = max_children * 4;
-
-				for (size_t which = 0; which < total_adds; which++)
-					{
-					object &data = *object::new_object(memory);
-					for (size_t dimension = 0; dimension < object::DIMENSIONS; dimension++)
-						if (which < (max_children / 2))
-							data.vector[dimension] = (rand() % 20) / 10.0;
-						else
-							data.vector[dimension] = ((rand() % 20) + 70) / 10.0;
-
-std::cout << "-----------> " << data << "\n";
-					tree.push_back(&data);
-std::cout << tree << "\n";
-					}
-
-std::cout << "TREE (" << total_adds << " adds)\n";
-std::cout << tree;
-				}
+			static void unittest(void);
 		};
 
 	/*

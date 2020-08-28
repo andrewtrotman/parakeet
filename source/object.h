@@ -1,6 +1,8 @@
 /*
 	OBJECT.H
 	--------
+	Copyright (c) 2020 Andrew Trotman
+	Released under the 2-clause BSD license (See:https://en.wikipedia.org/wiki/BSD_licenses)
 */
 #pragma once
 
@@ -12,17 +14,26 @@
 
 namespace k_tree
 	{
+	std::ostream &operator<<(std::ostream &stream, const class object &thing);
+
 	/*
 		CLASS OBJECT
 		------------
 	*/
 	class object
 		{
-		public:
-			static const int DIMENSIONS = 2;
-			double vector[DIMENSIONS];
+		static_assert(sizeof(float) == 4);			// floats must be 32-bit for the SIMD code to work
 
 		public:
+			static const int DIMENSIONS = 8;			// the number of dimensions of the float
+			float vector[DIMENSIONS];					// this object is simply a vector of floats (with SIMD single precision for operations)
+
+		public:
+			/*
+				OBJECT::OBJECT()
+				----------------
+				Constructor
+			*/
 			object()
 				{
 				/* Nothing */
@@ -31,7 +42,7 @@ namespace k_tree
 			/*
 				OBJECT::OBJECT()
 				----------------
-				copy constructor
+				Copy constructor
 			*/
 			object(object &with)
 				{
@@ -41,6 +52,7 @@ namespace k_tree
 			/*
 				OBJECT::NEW_OBJECT()
 				--------------------
+				Return a new object placement-constructed in memory provided by the allocator
 			*/
 			static object *new_object(allocator &allocator)
 				{
@@ -48,119 +60,91 @@ namespace k_tree
 				}
 
 			/*
-				OBJECT::CUMULATIVE_SUM_1()
-				--------------------------
+				SIMD::HORIZONTAL_SUM()
+				----------------------
+				Calculate the horizontal sum of the 32-bit integers in an AVX2 register
+				Returns the sum of all the members of the parameter
 			*/
-			static double cumulative_sum_1(__m256d elements)
+			static float horizontal_sum(__m256 elements)
 				{
 				/*
-					shift left by 1 value and add
-					D C B A
-					0 D 0 B
+					shift left by 1 integer and add
+					H G F E D C B A
+					0 H G F 0 D C B
 				*/
-				__m256d bottom = _mm256_bsrli_epi128(elements, 8);
-				elements = _mm256_add_pd(elements, bottom);
+				__m256 bottom = _mm256_bsrli_epi128(elements, 4);
+				elements = _mm256_add_ps(elements, bottom);
 
 				/*
-					we alread got :D0 CD B0 AB
-					permute to get:CD CD CD CD
+					shift left by 2 integers and add
+					H0 GH FG EF D0 CD BC AB
+					00 00 H0 GH 00 00 D0 CD
 				*/
-				__m256d missing = _mm256_permute2x128_si256(elements, elements, 1);
+				bottom = _mm256_bsrli_epi128(elements, 8);
+				elements = _mm256_add_ps(elements, bottom);
+				/*
+					We have: H000 GH00 EFGH D000 CD00 BCD0 ABCD
+				*/
+
+				/*
+					shuffle to get: EFGH EFGH EFGH EFGH ABCD ABCD ABCD ABCD
+					permute to get: 0000 0000 0000 0000 EFGH EFGH EFGH EFGH
+				*/
+				__m256 missing = _mm256_shuffle_epi32(elements, _MM_SHUFFLE(0, 0, 0, 0));
+				missing = _mm256_permute2x128_si256(_mm256_setzero_si256(), missing, 3);
+
 				/*
 					add
-					D0 CD B0 AB
-					CD CD CD CD
-					leaves ABCD in the bottom word, which we can then extract
+					EFGH EFGH EFGH EFGH ABCD ABCD ABCD ABCD
+					0000 0000 0000 0000 EFGH EFGH EFGH EFGH
+					leaving ABCDEFGH in the bottom worf
 				*/
-				__m256d answer = _mm256_add_pd(elements, missing);
+				__m256 answer = _mm256_add_ps(elements, missing);
 
-				return _mm256_cvtsd_f64(answer);
+				/*
+					extract the bottom word
+				*/
+				return  _mm256_cvtss_f32(answer);
 				}
 
 			/*
-				OBJECT::CUMULATIVE_SUM()
-				------------------------
+				OBJECT::DISTANCE_SQUARED()
+				--------------------------
+				Return the square of the Euclidean distance between parameters a and b using SIMD operations
 			*/
-			static double cumulative_sum(__m256d elements)
+			static float distance_squared(const object *a, const object *b)
 				{
-				/*
-					Extract the low and high 128-bit parts giving DC and BA
-				*/
-				__m128d high = _mm256_extractf128_pd(elements, 1);
-				__m128d low  = _mm256_castpd256_pd128(elements);
+				float total = 0;
 
-				/*
-					Add
-					D C
-					B A
-				*/
-				__m128d sum  = _mm_add_pd(low, high);
-
-				/*
-					Extract the high word (DB) and broadcast giving DB DB
-				*/
-				high = _mm_unpackhi_pd(sum, sum);
-
-				/*
-					Add the broadcast
-					DB DB
-					DB AC
-					giving the result in the low word
-				*/
-				sum = _mm_add_sd(sum, high);
-
-				/*
-					Extract the low word
-				*/
-				return  _mm_cvtsd_f64(sum);
-				}
-
-			/*
-				OBJECT::DISTANCE_SQUARED_SIMD()
-				-------------------------------
-			*/
-			static double distance_squared_simd(const object &a, const object &b)
-				{
-				double total = 0;
-
-				for (size_t dimension = 0; dimension < DIMENSIONS; dimension += 4)
+				for (size_t dimension = 0; dimension < DIMENSIONS; dimension += 8)
 					{
-					__m256d a_vec = _mm256_loadu_pd(&a.vector[dimension]);
-					__m256d b_vec = _mm256_loadu_pd(&b.vector[dimension]);
-					__m256d diff = _mm256_sub_pd(a_vec, b_vec);
-					__m256d result = _mm256_mul_pd(diff, diff);
-					total += cumulative_sum(result);
+					__m256 diff = _mm256_sub_ps(_mm256_loadu_ps(a->vector + dimension), _mm256_loadu_ps(b->vector + dimension));
+					__m256 result = _mm256_mul_ps(diff, diff);
+					total += horizontal_sum(result);
 					}
 
 				return total;
 				}
 
 			/*
-				OBJECT::DISTANCE_SQUARED()
-				--------------------------
+				OBJECT::DISTANCE_SQUARED_LINEAR()
+				---------------------------------
+				Return the square of the Euclidean distance between parameters a and b without using SIMD operations
 			*/
-			static double distance_squared(const object &a, const object &b)
+			static double distance_squared_linear(const object *a, const object *b)
 				{
 				double total = 0;
 
 				for (size_t dimension = 0; dimension < DIMENSIONS; dimension++)
-					total += (a.vector[dimension] - b.vector[dimension]) * (a.vector[dimension] - b.vector[dimension]);
+					total += (a->vector[dimension] - b->vector[dimension]) * (a->vector[dimension] - b->vector[dimension]);
 
 				return total;
 				}
 
 			/*
-				OBJECT::DISTANCE_SQUARED()
-				--------------------------
-			*/
-			static double distance_squared(const object *a, const object *b)
-				{
-				return distance_squared(*a, *b);
-				}
-
-			/*
 				OBJECT::ZERO()
 				--------------
+				Set all elements in the vector to zero
 			*/
 			void zero()
 				{
@@ -170,53 +154,50 @@ namespace k_tree
 			/*
 				OBJECT::OPERATOR+=()
 				--------------------
+				this += operand
 			*/
 			void operator+=(const object &operand)
 				{
-				for (size_t dimension = 0; dimension < DIMENSIONS; dimension++)
-					vector[dimension] += operand.vector[dimension];
-				}
-
-			/*
-				OBJECT::OPERATOR+=()
-				--------------------
-			*/
-			void operator+=(const object *operand)
-				{
-				for (size_t dimension = 0; dimension < DIMENSIONS; dimension++)
-					vector[dimension] += operand->vector[dimension];
+				for (size_t dimension = 0; dimension < DIMENSIONS; dimension += 8)
+					_mm256_storeu_ps(vector + dimension, _mm256_add_ps(_mm256_loadu_ps(vector + dimension), _mm256_loadu_ps(operand.vector + dimension)));
 				}
 
 			/*
 				OBJECT::OPERATOR/=()
 				--------------------
+				this /= operand
 			*/
-			void operator/=(double constant)
+			void operator/=(float constant)
 				{
-				for (size_t dimension = 0; dimension < DIMENSIONS; dimension++)
-					vector[dimension] /= constant;
+				__m256 divisor = _mm256_set1_ps(constant);
+
+				for (size_t dimension = 0; dimension < DIMENSIONS; dimension += 8)
+					_mm256_storeu_ps(vector + dimension, _mm256_div_ps(_mm256_loadu_ps(vector + dimension), divisor));
 				}
 
 			/*
 				OBJECT::FUSED_MULTIPLY_ADD()
 				----------------------------
+				this += operand * constant
 			*/
-			void fused_multiply_add(object *operand, double factor)
+			void fused_multiply_add(object &operand, float constant)
 				{
-				for (size_t dimension = 0; dimension < DIMENSIONS; dimension++)
-					vector[dimension] += operand->vector[dimension] * factor;
+				__m256 factor = _mm256_set1_ps(constant);
+				for (size_t dimension = 0; dimension < DIMENSIONS; dimension += 8)
+					_mm256_storeu_ps(vector + dimension, _mm256_fmadd_ps(_mm256_loadu_ps(operand.vector + dimension), factor, _mm256_loadu_ps(vector + dimension)));
 				}
 
 			/*
 				OBJECT::UNITTEST()
 				------------------
+				Unit test this class
 			*/
 			static void unittest(void)
 				{
 				object o1;
 				object o2;
-				const double v1[] = {1.1, 2,2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8};
-				const double v2[] = {9.9, 8.8, 7.7, 6.6, 5.5, 4.4, 3.3, 2.2};
+				const float v1[] = {1, 2, 3, 4, 5, 6, 7, 8};
+				const float v2[] = {9, 8, 7, 6, 5, 4, 3, 2};
 
 				for (size_t loader = 0; loader < DIMENSIONS; loader++)
 					{
@@ -224,10 +205,43 @@ namespace k_tree
 					o2.vector[loader] = v2[loader];
 					}
 
-				double linear = distance_squared(o1, o2);
-				double simd = distance_squared_simd(o1, o2);
+				float sum = horizontal_sum(_mm256_loadu_ps(v1));
+//std::cout << "Sum:" << sum << "\n";
+				assert(sum == 36);
 
-				std::cout << "Linear:" << linear << " SIMD:" << simd << "\n";
+
+				float linear = distance_squared_linear(&o1, &o2);
+				float simd = distance_squared(&o1, &o2);
+//std::cout << "Linear:" << linear << " SIMD:" << simd << "\n";
+				assert(simd == linear);
+
+
+				o1 += o2;
+//std::cout << "+=:" << o1 << "\n";
+				assert(horizontal_sum(_mm256_loadu_ps(o1.vector)) == 80);
+
+
+				o1 /= 5;
+//std::cout << "/=:" << o1 << "\n";
+				assert(horizontal_sum(_mm256_loadu_ps(o1.vector)) == 16);
+
+
+				o1.fused_multiply_add(o1, 5);
+//std::cout << "FMA():" << o1 << "\n";
+				assert(horizontal_sum(_mm256_loadu_ps(o1.vector)) == 96);
+
+
+				object o3 = o1;
+//std::cout << "CopyConstruct:" << o3 << "\n";
+				assert(horizontal_sum(_mm256_loadu_ps(o3.vector)) == 96);
+
+
+				o1.zero();
+//std::cout << "Zero():" << o1 << "\n";
+				assert(horizontal_sum(_mm256_loadu_ps(o1.vector)) == 0);
+
+
+				puts("object::PASS\n");
 				}
 		};
 
