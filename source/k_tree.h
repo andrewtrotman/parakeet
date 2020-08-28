@@ -16,14 +16,58 @@
 
 namespace k_tree
 	{
+	class node;
 	std::ostream &operator<<(std::ostream &stream, const class k_tree &thing);			// forward declare the output operator
 	const float float_resolution = 0.000001;														// floats his close are considered equal
 
 	const size_t max_children = 4;
 
 	/*
+		CLASS K_TREE
+		------------
+	*/
+	class k_tree
+		{
+		public:
+			node *root;						// the root of the k-tree
+			allocator &memory;			// all memory allocation happens through this allocator
+
+		public:
+			/*
+				K_TREE::K_TREE()
+				----------------
+			*/
+			k_tree(allocator &memory);
+
+			/*
+				K_TREE::PUSH_BACK()
+				-------------------
+			*/
+			void push_back(k_tree *of, object *data);
+
+			/*
+				K_TREE::PUSH_BACK()
+				-------------------
+			*/
+			void push_back(object *data);
+
+			/*
+				K_TREE::TEXT_RENDER()
+				---------------------
+			*/
+			void text_render(std::ostream &stream) const;
+
+			/*
+				K_TREE::UNITTEST()
+				------------------
+			*/
+			static void unittest(void);
+		};
+
+	/*
 		CLASS NODE
 		----------
+		A node (and a leaf) in the k-tree
 	*/
 	class node
 		{
@@ -328,94 +372,6 @@ namespace k_tree
 				*/
 				return did_split;
 				}
-		};
-
-	/*
-		CLASS K_TREE
-		------------
-	*/
-	class k_tree
-		{
-		public:
-			node *root;						// the root of the k-tree
-			allocator &memory;			// all memory allocation happens through this allocator
-
-		public:
-			/*
-				K_TREE::K_TREE()
-				----------------
-			*/
-			k_tree(allocator &memory) :
-				root(nullptr),
-				memory(memory)
-				{
-				/* Nothing */
-				}
-
-			/*
-				K_TREE::PUSH_BACK()
-				-------------------
-			*/
-			void push_back(allocator &memory, object *data)
-				{
-				bool did_split = false;
-				node *child_1;
-				node *child_2;
-
-				/*
-					Add to the tree
-				*/
-				if (root == nullptr)
-					{
-					/*
-						The very first add to the tree so create a node with one child
-					*/
-					node *leaf = node::new_node(memory, data);
-					root = node::new_node(memory, leaf);
-					root->compute_mean();
-					}
-				else
-					did_split = root->add_to_node(memory, data, &child_1, &child_2);
-
-				/*
-					Adding caused a split at the top level so we create a new root consisting of the two children
-				*/
-				if (did_split)
-					{
-					node *new_root = node::new_node(memory, child_1);
-					new_root->child[1] = child_2;
-					new_root->children = 2;
-					root = new_root;
-					child_1->compute_mean();
-					child_2->compute_mean();
-					root->compute_mean();
-					}
-				}
-
-			/*
-				K_TREE::PUSH_BACK()
-				-------------------
-			*/
-			void push_back(object *data)
-				{
-				push_back(memory, data);
-				}
-
-			/*
-				K_TREE::TEXT_RENDER()
-				---------------------
-			*/
-			void text_render(std::ostream &stream) const
-				{
-				if (root != nullptr)
-					root->text_render(stream, 0);
-				}
-
-			/*
-				K_TREE::UNITTEST()
-				------------------
-			*/
-			static void unittest(void);
 		};
 
 	/*
