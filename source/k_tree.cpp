@@ -11,6 +11,7 @@ namespace k_tree
 	/*
 		K_TREE::K_TREE()
 		----------------
+		Constructor
 	*/
 	k_tree::k_tree(allocator &memory) :
 		root(nullptr),
@@ -22,6 +23,7 @@ namespace k_tree
 	/*
 		K_TREE::PUSH_BACK()
 		-------------------
+		Add to the tree
 	*/
 	void k_tree::push_back(k_tree *of, object *data)
 		{
@@ -62,6 +64,7 @@ namespace k_tree
 	/*
 		K_TREE::PUSH_BACK()
 		-------------------
+		Add to the tree
 	*/
 	void k_tree::push_back(object *data)
 		{
@@ -71,6 +74,7 @@ namespace k_tree
 	/*
 		K_TREE::TEXT_RENDER()
 		---------------------
+		Serialsise a human-readable version of tree to the stream
 	*/
 	void k_tree::text_render(std::ostream &stream) const
 		{
@@ -81,7 +85,7 @@ namespace k_tree
 	/*
 		K_TREE::UNITTEST()
 		------------------
-		Test the k-tree code
+		Test the class
 	*/
 	void k_tree::unittest(void)
 		{

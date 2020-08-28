@@ -25,6 +25,9 @@ namespace k_tree
 	/*
 		CLASS K_TREE
 		------------
+		K-tree.  See:
+			S. Geva (2000) K-tree: a height balanced tree structured vector quantizer, Neural Networks for Signal Processing X. Proceedings of the 2000 IEEE Signal Processing Society Workshop, pp. 271-280, doi: 10.1109/NNSP.2000.889418.
+		This is a b-tree of vectors where each node stored a k-means clustering of the nodes beneath it.
 	*/
 	class k_tree
 		{
@@ -36,30 +39,35 @@ namespace k_tree
 			/*
 				K_TREE::K_TREE()
 				----------------
+				Constructor
 			*/
 			k_tree(allocator &memory);
 
 			/*
 				K_TREE::PUSH_BACK()
 				-------------------
+				Add to the tree
 			*/
 			void push_back(k_tree *of, object *data);
 
 			/*
 				K_TREE::PUSH_BACK()
 				-------------------
+				Add to the tree
 			*/
 			void push_back(object *data);
 
 			/*
 				K_TREE::TEXT_RENDER()
 				---------------------
+				Serialsise a human-readable version of tree to the stream
 			*/
 			void text_render(std::ostream &stream) const;
 
 			/*
 				K_TREE::UNITTEST()
 				------------------
+				Test the class
 			*/
 			static void unittest(void);
 		};
