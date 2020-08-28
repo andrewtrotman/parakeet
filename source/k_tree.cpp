@@ -10,8 +10,8 @@ namespace k_tree
 	{
 	void k_tree::unittest(void)
 		{
-		k_tree tree;
 		allocator memory;
+		k_tree tree(memory);
 		size_t total_adds = max_children * 4;
 
 		for (size_t which = 0; which < total_adds; which++)

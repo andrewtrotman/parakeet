@@ -16,9 +16,9 @@
 
 namespace k_tree
 	{
-	class k_tree;
-	std::ostream &operator<<(std::ostream &stream, const k_tree &thing);
-	const double double_resolution = 0.000001;
+	std::ostream &operator<<(std::ostream &stream, const class k_tree &thing);			// forward declare the output operator
+	const float float_resolution = 0.000001;														// floats his close are considered equal
+
 	const size_t max_children = 4;
 
 	/*
@@ -33,25 +33,13 @@ namespace k_tree
 			size_t leaves_below_this_point;	// the number of leaves below this node
 			node **child;							// the immediate descendants of this node
 
-		public:
+		private:
+			node() = delete;
 			/*
 				NODE()
 				------
 			*/
-			node() :
-				centroid(nullptr),
-				children(0),
-				leaves_below_this_point(0),
-				child(nullptr)
-				{
-				/* Nothing */
-				}
-
-			/*
-				NODE()
-				------
-			*/
-			node(object *data) :
+			node(allocator &memory, object *data) :
 				centroid(data),
 				children(0),
 				leaves_below_this_point(1),
@@ -64,11 +52,11 @@ namespace k_tree
 				NODE()
 				------
 			*/
-			node(node *first_child) :
-				centroid(new object),
+			node(allocator &memory, node *first_child) :
+				centroid(object::new_object(memory)),
 				children(1),
 				leaves_below_this_point(1),
-				child(new node *[max_children + 1])
+				child(new (memory.malloc(sizeof(node))) node *[max_children + 1])
 				{
 				if (first_child == nullptr)
 					leaves_below_this_point = children = 0;
@@ -76,11 +64,31 @@ namespace k_tree
 					child[0] = first_child;
 				}
 
+		public:
+			/*
+				NEW_NODE()
+				----------
+			*/
+			static node *new_node(allocator &memory, object *data)
+				{
+				return new (memory.malloc(sizeof(node))) node(memory, data);
+				}
+
+			/*
+				NEW_NODE()
+				----------
+			*/
+			static node *new_node(allocator &memory, node *first_child)
+				{
+				return new (memory.malloc(sizeof(node))) node(memory, first_child);
+				}
+
 			/*
 				ISLEAF()
 				--------
+				Return whether or not this node is a leaf
 			*/
-			bool isleaf(void)
+			bool isleaf(void) const
 				{
 				return child == nullptr;
 				}
@@ -88,6 +96,7 @@ namespace k_tree
 			/*
 				CLOSEST()
 				---------
+				Returns the index of the child closest to the parameter what
 			*/
 			size_t closest(object *what) const
 				{
@@ -95,14 +104,14 @@ namespace k_tree
 					Initialise to the distance to the first element in the list
 				*/
 				size_t closest_child = 0;
-				double min_distance = object::distance_squared(what, child[0]->centroid);
+				float min_distance = object::distance_squared(what, child[0]->centroid);
 
 				/*
 					Now check the distance to the others
 				*/
 				for (size_t which = 1; which < children; which++)
 					{
-					double distance = object::distance_squared(what, child[which]->centroid);
+					float distance = object::distance_squared(what, child[which]->centroid);
 					if (distance < min_distance)
 						{
 						min_distance = distance;
@@ -116,6 +125,7 @@ namespace k_tree
 			/*
 				TEXT_RENDER()
 				-------------
+				Serialise the object in a human-readable format and down the given stream
 			*/
 			void text_render(std::ostream &stream, size_t depth) const
 				{
@@ -132,6 +142,9 @@ namespace k_tree
 			/*
 				COMPUTE_MEAN()
 				--------------
+				Compute the centroid of the children below this node.  Note that this must be a weighted average as not all branched have the
+				same number of children and this resulting centroid should be the middle of the leaves not the middle of the children.  This also
+				recomputes that count from the children (which might have recently changed)
 			*/
 			void compute_mean(void)
 				{
@@ -149,23 +162,24 @@ namespace k_tree
 			/*
 				SPLIT()
 				-------
+				Split this node into two new children
 			*/
-			void split(node **child_1_out, node **child_2_out)
+			void split(allocator &memory, node **child_1_out, node **child_2_out) const
 				{
 				size_t place_in;
 				size_t assignment[max_children + 1];
 				size_t first_cluster_size;
 				size_t second_cluster_size;
-				double old_sum_distance = std::numeric_limits<double>::max();;
-				double new_sum_distance = old_sum_distance / 2;
+				float old_sum_distance = std::numeric_limits<float>::max();;
+				float new_sum_distance = old_sum_distance / 2;
 
 				/*
 					allocate space
 				*/
-				object *centroid_1 = new object;
-				object *centroid_2 = new object;
-				node *child_1 = *child_1_out = new node((node *)nullptr);
-				node *child_2 = *child_2_out = new node((node *)nullptr);
+				object *centroid_1 = object::new_object(memory);
+				object *centroid_2 = object::new_object(memory);
+				node *child_1 = *child_1_out = new_node(memory, (node *)nullptr);
+				node *child_2 = *child_2_out = new_node(memory, (node *)nullptr);
 
 				/*
 					Start with the first and last members of the current node.  It should really be 2 random elements, but close enough!
@@ -176,7 +190,7 @@ namespace k_tree
 				/*
 					The stopping condition is that the sum squared distance from the cluster centres has become constant (so no more shuffling can happen)
 				*/
-				while (old_sum_distance > (1.0 + double_resolution) * new_sum_distance)
+				while (old_sum_distance > (1.0 + float_resolution) * new_sum_distance)
 					{
 					old_sum_distance = new_sum_distance;
 					new_sum_distance = 0;
@@ -186,8 +200,8 @@ namespace k_tree
 						/*
 							Compute the distance (squared) to each of the two new cluster centroids
 						*/
-						double distance_to_first = object::distance_squared(child[which]->centroid, centroid_1);
-						double distance_to_second = object::distance_squared(child[which]->centroid, centroid_2);
+						float distance_to_first = object::distance_squared(child[which]->centroid, centroid_1);
+						float distance_to_second = object::distance_squared(child[which]->centroid, centroid_2);
 
 						/*
 							Choose a cluster, tie_break on the size of the cluster (put in the smallest to avoid empty clusters)
@@ -255,16 +269,17 @@ namespace k_tree
 			/*
 				ADD_TO_LEAF()
 				-------------
+				Add the given data to the current leaf node.
 				Returns whether or not there was a split (and so the node above must do a replacement and an add)
 			*/
-			bool add_to_leaf(object *data, node **child_1, node **child_2)
+			bool add_to_leaf(allocator &memory, object *data, node **child_1, node **child_2)
 				{
-				node *another = new node(data);
+				node *another = node::new_node(memory, data);
 				child[children] = another;
 				children++;
 				if (children > max_children)
 					{
-					split(child_1, child_2);
+					split(memory, child_1, child_2);
 					(*child_1)->compute_mean();
 					(*child_2)->compute_mean();
 					return true;
@@ -275,17 +290,18 @@ namespace k_tree
 			/*
 				ADD_TO_NODE()
 				-------------
+				Add the given data to the current tree at or below this point.
 				Returns whether or not there was a split (and so the node above must do a replacement and an add)
 			*/
-			bool add_to_node(object *data, node **child_1, node **child_2)
+			bool add_to_node(allocator &memory, object *data, node **child_1, node **child_2)
 				{
 				bool did_split = false;
 				if (child[0]->isleaf())
-					did_split = add_to_leaf(data, child_1, child_2);
+					did_split = add_to_leaf(memory, data, child_1, child_2);
 				else
 					{
 					size_t best_child = closest(data);
-					did_split = child[best_child]->add_to_node(data, child_1, child_2);
+					did_split = child[best_child]->add_to_node(memory, data, child_1, child_2);
 					if (did_split)
 						{
 						did_split = false;
@@ -295,7 +311,7 @@ namespace k_tree
 
 						if (children > max_children)
 							{
-							split(child_1, child_2);
+							split(memory, child_1, child_2);
 							(*child_1)->compute_mean();
 							(*child_2)->compute_mean();
 							did_split = true;
@@ -321,15 +337,17 @@ namespace k_tree
 	class k_tree
 		{
 		public:
-			node *root;
+			node *root;						// the root of the k-tree
+			allocator &memory;			// all memory allocation happens through this allocator
 
 		public:
 			/*
 				K_TREE()
 				--------
 			*/
-			k_tree() :
-				root(nullptr)
+			k_tree(allocator &memory) :
+				root(nullptr),
+				memory(memory)
 				{
 				/* Nothing */
 				}
@@ -338,7 +356,7 @@ namespace k_tree
 				PUSH_BACK()
 				-----------
 			*/
-			void push_back(object *data)
+			void push_back(allocator &memory, object *data)
 				{
 				bool did_split = false;
 				node *child_1;
@@ -352,19 +370,19 @@ namespace k_tree
 					/*
 						The very first add to the tree so create a node with one child
 					*/
-					node *leaf = new node(data);
-					root = new node(leaf);
+					node *leaf = node::new_node(memory, data);
+					root = node::new_node(memory, leaf);
 					root->compute_mean();
 					}
 				else
-					did_split = root->add_to_node(data, &child_1, &child_2);
+					did_split = root->add_to_node(memory, data, &child_1, &child_2);
 
 				/*
 					Adding caused a split at the top level so we create a new root consisting of the two children
 				*/
 				if (did_split)
 					{
-					node *new_root = new node(child_1);
+					node *new_root = node::new_node(memory, child_1);
 					new_root->child[1] = child_2;
 					new_root->children = 2;
 					root = new_root;
@@ -372,6 +390,15 @@ namespace k_tree
 					child_2->compute_mean();
 					root->compute_mean();
 					}
+				}
+
+			/*
+				PUSH_BACK()
+				-----------
+			*/
+			void push_back(object *data)
+				{
+				push_back(memory, data);
 				}
 
 			/*

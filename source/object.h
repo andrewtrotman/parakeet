@@ -25,30 +25,22 @@ namespace k_tree
 		static_assert(sizeof(float) == 4);			// floats must be 32-bit for the SIMD code to work
 
 		public:
-			static const int DIMENSIONS = 8;			// the number of dimensions of the float
-			float vector[DIMENSIONS];					// this object is simply a vector of floats (with SIMD single precision for operations)
+			static constexpr int DIMENSIONS = 8;			// the number of dimensions of the float
+			float *vector;											// this object is simply a vector of floats (with SIMD single precision for operations)
+
+		private:
+			/*
+				OBJECT::OBJECT()
+				----------------
+				Can only be constructed through new_object
+			*/
+			object() = delete;
+			object(allocator &allocator)
+				{
+				vector = (float *)allocator.malloc(sizeof(*vector) * DIMENSIONS);
+				}
 
 		public:
-			/*
-				OBJECT::OBJECT()
-				----------------
-				Constructor
-			*/
-			object()
-				{
-				/* Nothing */
-				}
-
-			/*
-				OBJECT::OBJECT()
-				----------------
-				Copy constructor
-			*/
-			object(object &with)
-				{
-				memcpy(vector, with.vector, sizeof(vector));
-				}
-
 			/*
 				OBJECT::NEW_OBJECT()
 				--------------------
@@ -56,7 +48,7 @@ namespace k_tree
 			*/
 			static object *new_object(allocator &allocator)
 				{
-				return new ((object *)allocator.malloc(sizeof(object))) object();
+				return new (allocator.malloc(sizeof(object))) object(allocator);
 				}
 
 			/*
@@ -146,9 +138,18 @@ namespace k_tree
 				--------------
 				Set all elements in the vector to zero
 			*/
-			void zero()
+			void zero(void)
 				{
-				memset(vector, 0, sizeof(vector));
+				memset(vector, 0, sizeof(*vector) * DIMENSIONS);
+				}
+
+			/*
+				OBJECT::OPERATOR=()
+				-------------------
+			*/
+			void operator=(const object &operand)
+				{
+				memcpy(vector, operand.vector, sizeof(*vector) * DIMENSIONS);
 				}
 
 			/*
@@ -194,15 +195,17 @@ namespace k_tree
 			*/
 			static void unittest(void)
 				{
-				object o1;
-				object o2;
+				allocator memory;
+				object *o1 = new_object(memory);
+				object *o2 = new_object(memory);
+
 				const float v1[] = {1, 2, 3, 4, 5, 6, 7, 8};
 				const float v2[] = {9, 8, 7, 6, 5, 4, 3, 2};
 
 				for (size_t loader = 0; loader < DIMENSIONS; loader++)
 					{
-					o1.vector[loader] = v1[loader];
-					o2.vector[loader] = v2[loader];
+					o1->vector[loader] = v1[loader];
+					o2->vector[loader] = v2[loader];
 					}
 
 				float sum = horizontal_sum(_mm256_loadu_ps(v1));
@@ -210,35 +213,30 @@ namespace k_tree
 				assert(sum == 36);
 
 
-				float linear = distance_squared_linear(&o1, &o2);
-				float simd = distance_squared(&o1, &o2);
+				float linear = distance_squared_linear(o1, o2);
+				float simd = distance_squared(o1, o2);
 //std::cout << "Linear:" << linear << " SIMD:" << simd << "\n";
 				assert(simd == linear);
 
 
-				o1 += o2;
+				*o1 += *o2;
 //std::cout << "+=:" << o1 << "\n";
-				assert(horizontal_sum(_mm256_loadu_ps(o1.vector)) == 80);
+				assert(horizontal_sum(_mm256_loadu_ps(o1->vector)) == 80);
 
 
-				o1 /= 5;
+				*o1 /= 5;
 //std::cout << "/=:" << o1 << "\n";
-				assert(horizontal_sum(_mm256_loadu_ps(o1.vector)) == 16);
+				assert(horizontal_sum(_mm256_loadu_ps(o1->vector)) == 16);
 
 
-				o1.fused_multiply_add(o1, 5);
+				o1->fused_multiply_add(*o1, 5);
 //std::cout << "FMA():" << o1 << "\n";
-				assert(horizontal_sum(_mm256_loadu_ps(o1.vector)) == 96);
+				assert(horizontal_sum(_mm256_loadu_ps(o1->vector)) == 96);
 
 
-				object o3 = o1;
-//std::cout << "CopyConstruct:" << o3 << "\n";
-				assert(horizontal_sum(_mm256_loadu_ps(o3.vector)) == 96);
-
-
-				o1.zero();
+				o1->zero();
 //std::cout << "Zero():" << o1 << "\n";
-				assert(horizontal_sum(_mm256_loadu_ps(o1.vector)) == 0);
+				assert(horizontal_sum(_mm256_loadu_ps(o1->vector)) == 0);
 
 
 				puts("object::PASS\n");
