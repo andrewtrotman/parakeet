@@ -8,6 +8,11 @@
 
 namespace k_tree
 	{
+	/*
+		K_TREE::UNITTEST()
+		------------------
+		Test the k-tree code
+	*/
 	void k_tree::unittest(void)
 		{
 		allocator memory;

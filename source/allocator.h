@@ -13,21 +13,24 @@ namespace k_tree
 	/*
 		CLASS ALLOCATOR
 		---------------
+		Custom zone-based allocator
 	*/
 	class allocator
 		{
 		private:
-			std::vector<uint8_t *> blocks;
-			uint8_t *chunk;
-			size_t size;
-			size_t used;
+			std::vector<uint8_t *> blocks;				// a list of the block we have allocated
+			uint8_t *chunk;									// the current chunk we are allocating from
+			size_t size;										// the size of the current block (in bytes)
+			size_t used;										// the number of bytes of the current block that we have used
+			bool use_global_malloc;							// should we use the C/C++ runtime malloc method?
 
 		public:
 			/*
 				ALLOCATOR::ALLOCATOR()
 				----------------------
+				Constructor
 			*/
-			allocator(size_t block_size = 1024*1024*1024) :
+			allocator(size_t block_size = 1'073'741'824 /* 1GB */, bool use_global_malloc = false) :
 				chunk(nullptr),
 				size(block_size),
 				used(block_size)
@@ -38,6 +41,7 @@ namespace k_tree
 			/*
 				ALLOCATOR::~ALLOCATOR()
 				----------------------
+				Destructor
 			*/
 			virtual ~allocator()
 				{
@@ -48,19 +52,25 @@ namespace k_tree
 			/*
 				ALLOCATOR::MALLOC()
 				-------------------
+				Allocate a block of memory and return it to the caller
 			*/
 			void *malloc(size_t bytes)
 				{
-				if (used + bytes > size)
+				if (use_global_malloc)
+					return (void *)new uint8_t [bytes];
+				else
 					{
-					chunk = new uint8_t[size];
-					blocks.push_back(chunk);
-					used = 0;
-					}
+					if (used + bytes > size)
+						{
+						chunk = new uint8_t[size];
+						blocks.push_back(chunk);
+						used = 0;
+						}
 
-				uint8_t *start = chunk + used;
-				used += bytes;
-				return start;
+					void *start = chunk + used;
+					used += bytes;
+					return start;
+					}
 				}
 		};
 	}

@@ -36,8 +36,8 @@ namespace k_tree
 		private:
 			node() = delete;
 			/*
-				NODE()
-				------
+				NODE::NODE()
+				------------
 			*/
 			node(allocator &memory, object *data) :
 				centroid(data),
@@ -49,14 +49,14 @@ namespace k_tree
 				}
 
 			/*
-				NODE()
-				------
+				NODE::NODE()
+				------------
 			*/
 			node(allocator &memory, node *first_child) :
 				centroid(object::new_object(memory)),
 				children(1),
 				leaves_below_this_point(1),
-				child(new (memory.malloc(sizeof(node))) node *[max_children + 1])
+				child(new (memory.malloc(sizeof(node *) * (max_children + 1))) node *[max_children + 1])
 				{
 				if (first_child == nullptr)
 					leaves_below_this_point = children = 0;
@@ -66,8 +66,8 @@ namespace k_tree
 
 		public:
 			/*
-				NEW_NODE()
-				----------
+				NODE::NEW_NODE()
+				----------------
 			*/
 			static node *new_node(allocator &memory, object *data)
 				{
@@ -75,8 +75,8 @@ namespace k_tree
 				}
 
 			/*
-				NEW_NODE()
-				----------
+				NODE::NEW_NODE()
+				----------------
 			*/
 			static node *new_node(allocator &memory, node *first_child)
 				{
@@ -84,8 +84,8 @@ namespace k_tree
 				}
 
 			/*
-				ISLEAF()
-				--------
+				NODE::ISLEAF()
+				--------------
 				Return whether or not this node is a leaf
 			*/
 			bool isleaf(void) const
@@ -94,8 +94,8 @@ namespace k_tree
 				}
 
 			/*
-				CLOSEST()
-				---------
+				NODE::CLOSEST()
+				---------------
 				Returns the index of the child closest to the parameter what
 			*/
 			size_t closest(object *what) const
@@ -123,8 +123,8 @@ namespace k_tree
 				}
 
 			/*
-				TEXT_RENDER()
-				-------------
+				NODE::TEXT_RENDER()
+				-------------------
 				Serialise the object in a human-readable format and down the given stream
 			*/
 			void text_render(std::ostream &stream, size_t depth) const
@@ -140,8 +140,8 @@ namespace k_tree
 				}
 
 			/*
-				COMPUTE_MEAN()
-				--------------
+				NODE::COMPUTE_MEAN()
+				--------------------
 				Compute the centroid of the children below this node.  Note that this must be a weighted average as not all branched have the
 				same number of children and this resulting centroid should be the middle of the leaves not the middle of the children.  This also
 				recomputes that count from the children (which might have recently changed)
@@ -160,8 +160,8 @@ namespace k_tree
 				}
 
 			/*
-				SPLIT()
-				-------
+				NODE::SPLIT()
+				-------------
 				Split this node into two new children
 			*/
 			void split(allocator &memory, node **child_1_out, node **child_2_out) const
@@ -267,8 +267,8 @@ namespace k_tree
 				}
 
 			/*
-				ADD_TO_LEAF()
-				-------------
+				NODE::ADD_TO_LEAF()
+				-------------------
 				Add the given data to the current leaf node.
 				Returns whether or not there was a split (and so the node above must do a replacement and an add)
 			*/
@@ -288,8 +288,8 @@ namespace k_tree
 				}
 
 			/*
-				ADD_TO_NODE()
-				-------------
+				NODE::ADD_TO_NODE()
+				-------------------
 				Add the given data to the current tree at or below this point.
 				Returns whether or not there was a split (and so the node above must do a replacement and an add)
 			*/
@@ -342,8 +342,8 @@ namespace k_tree
 
 		public:
 			/*
-				K_TREE()
-				--------
+				K_TREE::K_TREE()
+				----------------
 			*/
 			k_tree(allocator &memory) :
 				root(nullptr),
@@ -353,8 +353,8 @@ namespace k_tree
 				}
 
 			/*
-				PUSH_BACK()
-				-----------
+				K_TREE::PUSH_BACK()
+				-------------------
 			*/
 			void push_back(allocator &memory, object *data)
 				{
@@ -393,8 +393,8 @@ namespace k_tree
 				}
 
 			/*
-				PUSH_BACK()
-				-----------
+				K_TREE::PUSH_BACK()
+				-------------------
 			*/
 			void push_back(object *data)
 				{
@@ -402,8 +402,8 @@ namespace k_tree
 				}
 
 			/*
-				TEXT_RENDER()
-				-------------
+				K_TREE::TEXT_RENDER()
+				---------------------
 			*/
 			void text_render(std::ostream &stream) const
 				{
@@ -412,8 +412,8 @@ namespace k_tree
 				}
 
 			/*
-				UNITTEST()
-				----------
+				K_TREE::UNITTEST()
+				------------------
 			*/
 			static void unittest(void);
 		};
