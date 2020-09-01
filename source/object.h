@@ -22,10 +22,12 @@ namespace k_tree
 	*/
 	class object
 		{
+		friend class node;
+		friend class k_tree;
 		static_assert(sizeof(float) == 4);			// floats must be 32-bit for the SIMD code to work
 
 		public:
-			static constexpr int DIMENSIONS = 8;			// the number of dimensions of the float
+			size_t dimensions;			// the number of dimensions of the float
 			float *vector;											// this object is simply a vector of floats (with SIMD single precision for operations)
 
 		private:
@@ -34,10 +36,20 @@ namespace k_tree
 				----------------
 				Can only be constructed through new_object
 			*/
-			object() = delete;
-			object(allocator &allocator)
+			object()
 				{
-				vector = (float *)allocator.malloc(sizeof(*vector) * DIMENSIONS);
+				/* Nothing */
+				}
+
+			/*
+				OBJECT::OBJECT()
+				----------------
+				Can only be constructed through new_object
+			*/
+			object(size_t dimensions) :
+				dimensions(dimensions)
+				{
+				/* Nothing */
 				}
 
 		public:
@@ -46,9 +58,25 @@ namespace k_tree
 				--------------------
 				Return a new object placement-constructed in memory provided by the allocator
 			*/
-			static object *new_object(allocator &allocator)
+			object *new_object(allocator *allocator)
 				{
-				return new (allocator.malloc(sizeof(object))) object(allocator);
+				/*
+					Allocate a new object
+				*/
+				object *answer = new (allocator->malloc(sizeof(object))) object;
+
+				/*
+					Set the number of dimensions
+				*/
+				answer->dimensions = dimensions;
+
+				/*
+					Allocate space for the vector.
+				*/
+				answer->vector = (float *)allocator->malloc(sizeof(*vector) * dimensions);
+				memset(answer->vector, 0, sizeof(*answer->vector ) * dimensions);
+
+				return answer;
 				}
 
 			/*
@@ -104,13 +132,13 @@ namespace k_tree
 				--------------------------
 				Return the square of the Euclidean distance between parameters a and b using SIMD operations
 			*/
-			static float distance_squared(const object *a, const object *b)
+			float distance_squared(const object *b)
 				{
 				float total = 0;
 
-				for (size_t dimension = 0; dimension < DIMENSIONS; dimension += 8)
+				for (size_t dimension = 0; dimension < dimensions; dimension += 8)
 					{
-					__m256 diff = _mm256_sub_ps(_mm256_loadu_ps(a->vector + dimension), _mm256_loadu_ps(b->vector + dimension));
+					__m256 diff = _mm256_sub_ps(_mm256_loadu_ps(vector + dimension), _mm256_loadu_ps(b->vector + dimension));
 					__m256 result = _mm256_mul_ps(diff, diff);
 					total += horizontal_sum(result);
 					}
@@ -123,12 +151,12 @@ namespace k_tree
 				---------------------------------
 				Return the square of the Euclidean distance between parameters a and b without using SIMD operations
 			*/
-			static double distance_squared_linear(const object *a, const object *b)
+			double distance_squared_linear(const object *b)
 				{
 				double total = 0;
 
-				for (size_t dimension = 0; dimension < DIMENSIONS; dimension++)
-					total += (a->vector[dimension] - b->vector[dimension]) * (a->vector[dimension] - b->vector[dimension]);
+				for (size_t dimension = 0; dimension < dimensions; dimension++)
+					total += (vector[dimension] - b->vector[dimension]) * (vector[dimension] - b->vector[dimension]);
 
 				return total;
 				}
@@ -140,7 +168,7 @@ namespace k_tree
 			*/
 			void zero(void)
 				{
-				memset(vector, 0, sizeof(*vector) * DIMENSIONS);
+				memset(vector, 0, sizeof(*vector) * dimensions);
 				}
 
 			/*
@@ -149,7 +177,7 @@ namespace k_tree
 			*/
 			void operator=(const object &operand)
 				{
-				memcpy(vector, operand.vector, sizeof(*vector) * DIMENSIONS);
+				memcpy(vector, operand.vector, sizeof(*vector) * dimensions);
 				}
 
 			/*
@@ -159,7 +187,7 @@ namespace k_tree
 			*/
 			void operator+=(const object &operand)
 				{
-				for (size_t dimension = 0; dimension < DIMENSIONS; dimension += 8)
+				for (size_t dimension = 0; dimension < dimensions; dimension += 8)
 					_mm256_storeu_ps(vector + dimension, _mm256_add_ps(_mm256_loadu_ps(vector + dimension), _mm256_loadu_ps(operand.vector + dimension)));
 				}
 
@@ -172,7 +200,7 @@ namespace k_tree
 				{
 				__m256 divisor = _mm256_set1_ps(constant);
 
-				for (size_t dimension = 0; dimension < DIMENSIONS; dimension += 8)
+				for (size_t dimension = 0; dimension < dimensions; dimension += 8)
 					_mm256_storeu_ps(vector + dimension, _mm256_div_ps(_mm256_loadu_ps(vector + dimension), divisor));
 				}
 
@@ -184,7 +212,7 @@ namespace k_tree
 			void fused_multiply_add(object &operand, float constant)
 				{
 				__m256 factor = _mm256_set1_ps(constant);
-				for (size_t dimension = 0; dimension < DIMENSIONS; dimension += 8)
+				for (size_t dimension = 0; dimension < dimensions; dimension += 8)
 					_mm256_storeu_ps(vector + dimension, _mm256_fmadd_ps(_mm256_loadu_ps(operand.vector + dimension), factor, _mm256_loadu_ps(vector + dimension)));
 				}
 
@@ -195,14 +223,16 @@ namespace k_tree
 			*/
 			static void unittest(void)
 				{
+				object initial(8);
 				allocator memory;
-				object *o1 = new_object(memory);
-				object *o2 = new_object(memory);
+
+				object *o1 = initial.new_object(&memory);
+				object *o2 = initial.new_object(&memory);
 
 				const float v1[] = {1, 2, 3, 4, 5, 6, 7, 8};
 				const float v2[] = {9, 8, 7, 6, 5, 4, 3, 2};
 
-				for (size_t loader = 0; loader < DIMENSIONS; loader++)
+				for (size_t loader = 0; loader < initial.dimensions; loader++)
 					{
 					o1->vector[loader] = v1[loader];
 					o2->vector[loader] = v2[loader];
@@ -213,8 +243,8 @@ namespace k_tree
 				assert(sum == 36);
 
 
-				float linear = distance_squared_linear(o1, o2);
-				float simd = distance_squared(o1, o2);
+				float linear = o1->distance_squared_linear(o2);
+				float simd = o1->distance_squared(o2);
 //std::cout << "Linear:" << linear << " SIMD:" << simd << "\n";
 				assert(simd == linear);
 
@@ -251,7 +281,7 @@ namespace k_tree
 		{
 		stream << "[ ";
 		stream << thing.vector[0];
-		for (size_t dimension = 1; dimension < thing.DIMENSIONS; dimension++)
+		for (size_t dimension = 1; dimension < thing.dimensions; dimension++)
 			stream << ',' << thing.vector[dimension];
 		stream << " ]";
 
