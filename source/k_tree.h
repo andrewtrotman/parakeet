@@ -25,7 +25,7 @@ namespace k_tree
 	class k_tree
 		{
 		public:
-			node *parameters;	// The sole purpose of global_statistics is to store the order (branchine factor) of the tree and the width of the vectors it holds.
+			node *parameters;				// The sole purpose of parameters is to store the order (branchine factor) of the tree and the width of the vectors it holds.
 			node *root;						// the root of the k-tree
 			allocator *memory;			// all memory allocation happens through this allocator
 
@@ -43,6 +43,13 @@ namespace k_tree
 				Add to the tree
 			*/
 			void push_back(allocator *memory, object *data);
+
+			/*
+				K_TREE::GET_EXAMPLE_OBJECT
+				--------------------------
+				Return an example vector
+			*/
+			object *get_example_object(void);
 
 			/*
 				K_TREE::TEXT_RENDER()

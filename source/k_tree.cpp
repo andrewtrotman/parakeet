@@ -68,6 +68,16 @@ namespace k_tree
 		}
 
 	/*
+		K_TREE::GET_EXAMPLE_OBJECT
+		--------------------------
+		Return an example vector
+	*/
+	object *k_tree::get_example_object(void)
+		{
+		return parameters->centroid;
+		}
+
+	/*
 		K_TREE::TEXT_RENDER()
 		---------------------
 		Serialsise a human-readable version of tree to the stream
@@ -75,7 +85,7 @@ namespace k_tree
 	void k_tree::text_render(std::ostream &stream) const
 		{
 		if (root != nullptr)
-			root->text_render(stream, 0);
+			root->text_render(stream);
 		}
 
 	/*
@@ -85,9 +95,10 @@ namespace k_tree
 	*/
 	void k_tree::unittest(void)
 		{
-		object initial(8);
+		constexpr size_t dimensions = 2;
+		object initial(dimensions);
 		allocator memory;
-		k_tree tree(&memory, 4, 8);
+		k_tree tree(&memory, 4, dimensions);
 		size_t total_adds = 16;
 
 		for (size_t which = 0; which < total_adds; which++)

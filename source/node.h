@@ -103,6 +103,6 @@ namespace k_tree
 				-------------------
 				Serialise the object in a human-readable format and down the given stream
 			*/
-			void text_render(std::ostream &stream, size_t depth) const;
+			void text_render(std::ostream &stream) const;
 		};
 	}

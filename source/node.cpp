@@ -55,7 +55,7 @@ namespace k_tree
 			answer->leaves_below_this_point = answer->children = 0;
 		else
 			{
-			child[0] = first_child;
+			answer->child[0] = first_child;
 			answer->children = 1;
 			}
 
@@ -296,16 +296,12 @@ namespace k_tree
 		-------------------
 		Serialise the object in a human-readable format and down the given stream
 	*/
-	void node::text_render(std::ostream &stream, size_t depth) const
+	void node::text_render(std::ostream &stream) const
 		{
-		stream << "(" << std::setw(3) << leaves_below_this_point << ")";
-		stream << "{" << std::setw(3) << children << "}";
-		if (depth != 0)
-			stream << std::setw(depth * 2) << ' ';
-		stream <<  *centroid << "\n";
+		stream << children << ' ' << leaves_below_this_point << ' ' << *centroid << "\n";
 
 		for (size_t who = 0; who < children; who++)
-			child[who]->text_render(stream, depth + 1);
+			child[who]->text_render(stream);
 		}
 	}
 

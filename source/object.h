@@ -72,9 +72,19 @@ namespace k_tree
 
 				/*
 					Allocate space for the vector.
+					To work with AVX2 this needs to rounded up to the nearest 8.  For AVX-512 round up to the nearest 16.
 				*/
-				answer->vector = (float *)allocator->malloc(sizeof(*vector) * dimensions);
-				memset(answer->vector, 0, sizeof(*answer->vector ) * dimensions);
+				#ifdef __AVX512F__
+					size_t floats_per_word = 16;
+				#elif defined(__AVX2__)
+					size_t floats_per_word = 8;
+				#else
+					static_assert(false, "Must have either AVX2 or AVX512F");
+				#endif
+
+				size_t width = (dimensions + floats_per_word - 1) / floats_per_word * floats_per_word;
+				answer->vector = (float *)allocator->malloc(sizeof(*vector) * width);
+				memset(answer->vector, 0, sizeof(*answer->vector ) * width);
 
 				return answer;
 				}
@@ -279,11 +289,8 @@ namespace k_tree
 	*/
 	inline std::ostream &operator<<(std::ostream &stream, const object &thing)
 		{
-		stream << "[ ";
-		stream << thing.vector[0];
-		for (size_t dimension = 1; dimension < thing.dimensions; dimension++)
-			stream << ',' << thing.vector[dimension];
-		stream << " ]";
+		for (size_t dimension = 0; dimension < thing.dimensions; dimension++)
+			stream << thing.vector[dimension] << ' ';
 
 		return stream;
 		}
