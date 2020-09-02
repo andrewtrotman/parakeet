@@ -72,7 +72,13 @@ namespace k_tree
 	*/
 	inline std::ostream &operator<<(std::ostream &stream, const k_tree &thing)
 		{
+		std::ios_base::fmtflags f(stream.flags());
+
+		stream.precision(6);
+		stream << std::fixed;
 		thing.text_render(stream);
+
+		stream.flags(f);
 		return stream;
 		}
 	}
