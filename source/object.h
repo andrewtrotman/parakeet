@@ -6,6 +6,8 @@
 */
 #pragma once
 
+#include <assert.h>
+#include <string.h>
 #include <immintrin.h>
 
 #include <iostream>
@@ -102,7 +104,7 @@ namespace k_tree
 					H G F E D C B A
 					0 H G F 0 D C B
 				*/
-				__m256 bottom = _mm256_bsrli_epi128(elements, 4);
+				__m256 bottom = _mm256_castsi256_ps(_mm256_bsrli_epi128(_mm256_castps_si256(elements), 4));
 				elements = _mm256_add_ps(elements, bottom);
 
 				/*
@@ -110,7 +112,7 @@ namespace k_tree
 					H0 GH FG EF D0 CD BC AB
 					00 00 H0 GH 00 00 D0 CD
 				*/
-				bottom = _mm256_bsrli_epi128(elements, 8);
+				bottom = _mm256_castsi256_ps(_mm256_bsrli_epi128(_mm256_castps_si256(elements), 8));
 				elements = _mm256_add_ps(elements, bottom);
 				/*
 					We have: H000 GH00 EFGH D000 CD00 BCD0 ABCD
@@ -120,8 +122,8 @@ namespace k_tree
 					shuffle to get: EFGH EFGH EFGH EFGH ABCD ABCD ABCD ABCD
 					permute to get: 0000 0000 0000 0000 EFGH EFGH EFGH EFGH
 				*/
-				__m256 missing = _mm256_shuffle_epi32(elements, _MM_SHUFFLE(0, 0, 0, 0));
-				missing = _mm256_permute2x128_si256(_mm256_setzero_si256(), missing, 3);
+				__m256 missing = _mm256_castsi256_ps(_mm256_shuffle_epi32(_mm256_castps_si256(elements), _MM_SHUFFLE(0, 0, 0, 0)));
+				missing = _mm256_castsi256_ps(_mm256_permute2x128_si256(_mm256_setzero_si256(), missing, 3));
 
 				/*
 					add
