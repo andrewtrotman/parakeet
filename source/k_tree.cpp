@@ -15,6 +15,7 @@ namespace k_tree
 	*/
 
 	k_tree::k_tree(allocator *memory, size_t tree_order, size_t vector_order) :
+		split_count(0),
 		parameters(nullptr),
 		root(nullptr),
 		memory(memory)
@@ -23,7 +24,6 @@ namespace k_tree
 		parameters->max_children = tree_order;
 		parameters->centroid = new (memory->malloc(sizeof(*parameters->centroid))) object();
 		parameters->centroid->dimensions = vector_order;
-		/* Nothing */
 		}
 
 	/*
@@ -33,6 +33,7 @@ namespace k_tree
 	*/
 	void k_tree::push_back(allocator *memory, object *data)
 		{
+		node::context context(this, memory, split_count);
 		bool did_split = false;
 		node *child_1;
 		node *child_2;
@@ -50,7 +51,7 @@ namespace k_tree
 			root->compute_mean();
 			}
 		else
-			did_split = root->add_to_node(memory, data, &child_1, &child_2);
+			did_split = root->add_to_node(&context, data, &child_1, &child_2);
 
 		/*
 			Adding caused a split at the top level so we create a new root consisting of the two children

@@ -8,11 +8,14 @@
 
 #include <stdint.h>
 
+#include <atomic>
+
 #include "object.h"
 #include "allocator.h"
 
 namespace k_tree
 	{
+	class k_tree;
 	/*
 		CLASS NODE
 		----------
@@ -22,12 +25,49 @@ namespace k_tree
 		{
 		friend class k_tree;
 
+		public:
+			/*
+				ENUM STATUS
+				-----------
+				On addition to a node or leaf we might get success, a split is necessary, or we have to retry because a different thread wants to split this node
+			*/
+			typedef enum
+				{
+				result_success,		// all good
+				result_retry,			// someone else is splitting this node so exit and retry
+				result_split			// a split is necessary
+				} result;
+
+			/*
+				The current context of a node in the tree (which tree, which allocator, etc)
+			*/
+			/*
+				CLASS NODE::CONTEXT
+				-------------------
+			*/
+			class context
+				{
+				public:
+					k_tree *tree;					// we're in this tree
+					allocator *memory;			// we use this allocator to allocate memory
+					size_t split_count;			// the number of splits the tree has undergone (used to see if the return path might have changed, and therefore a split cannot happen)
+
+				public:
+					context(k_tree *tree, allocator *memory, size_t split_count) :
+						tree(tree),
+						memory(memory),
+						split_count(split_count)
+						{
+						/* Nothing */
+						}
+				};
+
 		private:
 			static constexpr float float_resolution = 0.000001;														// floats his close are considered equal
 
 		public:
 			size_t max_children;					//	the order of the tree at this node (constant per tree as it propegates when a new node is created)
-			size_t children;						// the number of children of this node
+			std::atomic<size_t> children;		// the number of children currently at this node
 			node **child;							// the immediate descendants of this node
 			object *centroid;						// the centroid of this cluster
 			size_t leaves_below_this_point;	// the number of leaves below this node
@@ -60,6 +100,13 @@ namespace k_tree
 			bool isleaf(void) const;
 
 			/*
+				NODE::NUMBER_OF_CHILDREN()
+				--------------------------
+				Return the number of children at this node under the knowledge that the node might be undergoing an update.
+			*/
+			size_t number_of_children(void) const;
+
+			/*
 				NODE::CLOSEST()
 				---------------
 				Returns the index of the child closest to the parameter what
@@ -78,7 +125,7 @@ namespace k_tree
 			/*
 				NODE::SPLIT()
 				-------------
-				Split this node into two new children
+				Split this node into two new children - knowing that the node is full (i.e child[0..max_children] are all non-null)
 			*/
 			void split(allocator *memory, node **child_1_out, node **child_2_out) const;
 
@@ -88,7 +135,7 @@ namespace k_tree
 				Add the given data to the current leaf node.
 				Returns whether or not there was a split (and so the node above must do a replacement and an add)
 			*/
-			bool add_to_leaf(allocator *memory, object *data, node **child_1, node **child_2);
+			node::result add_to_leaf(context *context, object *data, node **child_1, node **child_2);
 
 			/*
 				NODE::ADD_TO_NODE()
@@ -96,7 +143,7 @@ namespace k_tree
 				Add the given data to the current tree at or below this point.
 				Returns whether or not there was a split (and so the node above must do a replacement and an add)
 			*/
-			bool add_to_node(allocator *memory, object *data, node **child_1, node **child_2);
+			node::result add_to_node(context *context, object *data, node **child_1, node **child_2);
 
 			/*
 				NODE::TEXT_RENDER()

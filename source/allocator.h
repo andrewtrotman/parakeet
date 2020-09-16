@@ -52,12 +52,16 @@ namespace k_tree
 			/*
 				ALLOCATOR::MALLOC()
 				-------------------
-				Allocate a block of memory and return it to the caller
+				Allocate a block of memory, initialise it to 0, and return it to the caller
 			*/
 			void *malloc(size_t bytes)
 				{
 				if (use_global_malloc)
-					return (void *)new uint8_t [bytes];
+					{
+					uint8_t *data = new uint8_t [bytes];
+					memset(data, 0, bytes);
+					return (void *)data;
+					}
 				else
 					{
 					if (used + bytes > size)
@@ -67,9 +71,10 @@ namespace k_tree
 						used = 0;
 						}
 
-					void *start = chunk + used;
+					uint8_t *start = chunk + used;
+					memset(start, 0, bytes);
 					used += bytes;
-					return start;
+					return (void *)start;
 					}
 				}
 		};
