@@ -27,7 +27,7 @@ namespace k_tree
 	class k_tree
 		{
 		public:
-			std::atomic<size_t> split_count;		// the number of splits we've seen
+			std::atomic<node::context::in_out_count> split_count;		// the number of splits we've seen (counts starts an finishes of the split)
 
 			node *parameters;				// the sole purpose of parameters is to store the order (branchine factor) of the tree and the width of the vectors it holds.
 			node *root;						// the root of the k-tree
@@ -40,6 +40,13 @@ namespace k_tree
 				Constructor
 			*/
 			k_tree(allocator *memory, size_t tree_order, size_t vector_order);
+
+			/*
+				K_TREE::ATTEMPT_PUSH_BACK()
+				---------------------------
+				Add to the tree
+			*/
+			node::result attempt_push_back(allocator *memory, object *data);
 
 			/*
 				K_TREE::PUSH_BACK()

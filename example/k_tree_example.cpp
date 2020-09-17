@@ -8,10 +8,55 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <atomic>
+#include <thread>
 #include <fstream>
 #include <iostream>
 
 #include "k_tree.h"
+
+/*
+	CLASS JOB
+	---------
+	An individual piexe of work that needs to be done (i.e. added to the tree)
+*/
+class job
+	{
+	public:
+		std::atomic<uint8_t> has_been_processed;			// this is true if a thread has taken responsibility for adding this to the tree, else false
+		k_tree::object *vector;									// this is the vector to add
+
+	public:
+		job() = delete;
+
+		/*
+			JOB::JOB()
+			----------
+			Create a workload object ready for insertion into the list of work to be done
+		*/
+		job(k_tree::object *vector) :
+			has_been_processed(false),
+			vector(vector)
+			{
+			/* Nothing */
+			}
+
+		/*
+			JOB::JOB()
+			----------
+			Move Constructor
+		*/
+		job(job &&original) :
+			has_been_processed(original.has_been_processed.load()),
+			vector(original.vector)
+			{
+			/*
+				Invalidate the original object.
+			*/
+			original.has_been_processed = true;
+			original.vector = nullptr;
+			}
+	};
 
 /*
 	READ_ENTIRE_FILE()
@@ -118,6 +163,31 @@ void buffer_to_list(std::vector<uint8_t *> &line_list, std::string &buffer)
 	}
 
 /*
+	THREAD_WORK()
+	-------------
+	Entry point for each thread.  The work is to add some nodes from vector_list to tree
+*/
+void thread_work(k_tree::allocator *memory, k_tree::k_tree *tree, std::vector<job> *work_list)
+	{
+	size_t end = work_list->size();
+	size_t index = 0;
+
+	while (index < end)
+		{
+		job *task = &(*work_list)[index];
+		if (!task->has_been_processed)
+			index++;
+		else
+			{
+			uint8_t expected = false;
+			if (task->has_been_processed.compare_exchange_strong(expected, true))
+				tree->push_back(memory, task->vector);
+			index++;
+			}
+		}
+	}
+
+/*
 	BUILD()
 	-------
 	Build the k-tree from the input data
@@ -125,7 +195,7 @@ void buffer_to_list(std::vector<uint8_t *> &line_list, std::string &buffer)
 int build(char *infilename, size_t tree_order, char *outfilename)
 	{
 	k_tree::allocator memory;
-	std::vector<k_tree::object *> vector_list;
+	std::vector<job> vector_list;
 
 	/*
 		Check the tree order is "reasonable"
@@ -198,9 +268,17 @@ int build(char *infilename, size_t tree_order, char *outfilename)
 
 	/*
 		Add them to the tree
+		Start a bunch of threads to each do some of the work
 	*/
-	for (const auto vector : vector_list)
-		tree.push_back(&memory, vector);
+size_t thread_count = 1;
+	std::vector<std::thread> thread_pool;
+	for (size_t which = 0; which < thread_count ; which++)
+		thread_pool.push_back(std::thread(thread_work, &memory, &tree, &vector_list));
+	/*
+		Wait until all the threads have finished
+	*/
+	for (auto &thread : thread_pool)
+		thread.join();
 
 	/*
 		Dump the tree to the output file

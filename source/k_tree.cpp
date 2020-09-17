@@ -15,7 +15,7 @@ namespace k_tree
 	*/
 
 	k_tree::k_tree(allocator *memory, size_t tree_order, size_t vector_order) :
-		split_count(0),
+		split_count(),
 		parameters(nullptr),
 		root(nullptr),
 		memory(memory)
@@ -27,14 +27,14 @@ namespace k_tree
 		}
 
 	/*
-		K_TREE::PUSH_BACK()
-		-------------------
+		K_TREE::ATTEMPT_PUSH_BACK()
+		---------------------------
 		Add to the tree
 	*/
-	void k_tree::push_back(allocator *memory, object *data)
+	node::result k_tree::attempt_push_back(allocator *memory, object *data)
 		{
 		node::context context(this, memory, split_count);
-		bool did_split = false;
+		node::result did_split = node::result_success;
 		node *child_1;
 		node *child_2;
 
@@ -46,17 +46,21 @@ namespace k_tree
 			/*
 				The very first add to the tree so create a node with one child
 			*/
+			if (!node::take_lock(&context))
+				return node::result_retry;
 			node *leaf = parameters->new_node(memory, data);
 			root = parameters->new_node(memory, leaf);
 			root->compute_mean();
+			node::release_lock(&context);
 			}
 		else
 			did_split = root->add_to_node(&context, data, &child_1, &child_2);
 
 		/*
-			Adding caused a split at the top level so we create a new root consisting of the two children
+			Adding caused a split at the top level so we create a new root consisting of the two children.  If this happens then
+			the tree is also left locked.
 		*/
-		if (did_split)
+		if (did_split == node::result_split)
 			{
 			node *new_root = parameters->new_node(memory, child_1);
 			new_root->child[1] = child_2;
@@ -65,7 +69,28 @@ namespace k_tree
 			child_1->compute_mean();
 			child_2->compute_mean();
 			root->compute_mean();
+			/*
+				The tree is locked, so we unlock it
+			*/
+			node::release_lock(&context);
+
+			did_split = node::result_success;	// the node above (there isn't one) doesn't need to split
 			}
+		return did_split;
+		}
+
+	/*
+		K_TREE::PUSH_BACK()
+		-------------------
+		Add to the tree
+	*/
+	void k_tree::push_back(allocator *memory, object *data)
+		{
+		node::result got;
+
+		do
+			got = attempt_push_back(memory, data);
+		while (got != node::result_success);
 		}
 
 	/*

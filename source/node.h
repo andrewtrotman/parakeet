@@ -39,21 +39,44 @@ namespace k_tree
 				} result;
 
 			/*
-				The current context of a node in the tree (which tree, which allocator, etc)
-			*/
-			/*
 				CLASS NODE::CONTEXT
 				-------------------
+				The current context of a node in the tree (which tree, which allocator, etc)
 			*/
 			class context
 				{
 				public:
+					/*
+						CLASS NODE::CONTEXT::IN_OUT_COUNT
+						---------------------------------
+						Stores the number of splits that have happened.  If begin != end then a split is currently happening
+					*/
+					class in_out_count
+						{
+						public:
+							uint64_t begin;				// number of splits that have been started
+							uint64_t end;					// number of splits that have completed
+						public:
+							/*
+								NODE::CONTEXT::IN_OUT_COUNT::IN_OUT_COUNT()
+								-------------------------------------------
+							*/
+							in_out_count() :
+								begin(0),
+								end(0)
+								{
+								/* Nothing */
+								}
+						};
+					static_assert(sizeof(in_out_count) == 16);		// make sure this will all happen with a x86_64 CMPXCHG16B instruction
+					
+				public:
 					k_tree *tree;					// we're in this tree
 					allocator *memory;			// we use this allocator to allocate memory
-					size_t split_count;			// the number of splits the tree has undergone (used to see if the return path might have changed, and therefore a split cannot happen)
+					in_out_count split_count;	// the number of splits the tree has undergone (used to see if the return path might have changed, and therefore a split cannot happen)
 
 				public:
-					context(k_tree *tree, allocator *memory, size_t split_count) :
+					context(k_tree *tree, allocator *memory, in_out_count split_count) :
 						tree(tree),
 						memory(memory),
 						split_count(split_count)
@@ -78,6 +101,21 @@ namespace k_tree
 				------------
 			*/
 			node();
+
+			/*
+				NODE::TAKE_LOCK()
+				-----------------
+				Take the split lock (signal that we want to do a split).
+				return true is we get the lock, false otherwise (and so result_retry should happen)
+			*/
+			static bool take_lock(context *context);
+
+			/*
+				NODE::RELEASE_LOCK()
+				--------------------
+				Release the split lock
+			*/
+			static void release_lock(context *context);
 
 		public:
 			/*

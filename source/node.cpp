@@ -90,7 +90,7 @@ namespace k_tree
 		if (child_count > max_children)
 			child_count = max_children;
 
-		if (child[child_count] == nullptr)
+		if (child[child_count - 1] == nullptr)
 			child_count--;
 
 		return child_count;
@@ -225,7 +225,7 @@ namespace k_tree
 			*/
 			centroid_1->zero();
 			centroid_2->zero();
-			for (size_t which = 0; which < max_children; which++)
+			for (size_t which = 0; which <= max_children; which++)
 				{
 				if (assignment[which] == 0)
 					*centroid_1 += *child[which]->centroid;
@@ -243,7 +243,7 @@ namespace k_tree
 		/*
 			At this point we have the new centroids and we have which node goes where in assignment[] so we populate the two new nodes
 		*/
-		for (size_t which = 0; which < max_children; which++)
+		for (size_t which = 0; which <= max_children; which++)
 			if (assignment[which] == 0)
 				{
 				child_1->child[child_1->children] = child[which];
@@ -254,6 +254,84 @@ namespace k_tree
 				child_2->child[child_2->children] = child[which];
 				child_2->children++;
 				}
+		}
+
+	/*
+		NODE::TAKE_LOCK()
+		-----------------
+		Take the split lock (signal that we want to do a split).
+		return true is we get the lock, false otherwise (and so result_retry should happen)
+	*/
+	bool node::take_lock(context *context)
+		{
+		/*
+			We're only alowed to split if the return path hasn't changed.
+			This can be guaranteed if the split count hasn't changed. If it has the we need to undo the slot assignment (atomically) and return re-try.
+			We have the old split count stored in context->split_count and we want to increase the count in the tree the (effectively) take a lock
+			if we're allowed, or fail if we're not allowed so we can use a compare-and-swap, all in the knowledge that since children is now equal to
+			max_children, that all other split attempts failed.  So if compare-and-swap fails then we can undo the slot assignment and force a retry.
+
+			Note that the split_count is counting two things, entry and exit from the split operaiton.  This is because a thread might start a split and then get
+			swapped out.  A second thread enters, gets the split count, notices a split is needed, does the split and exits all while the first thread is
+			swapped out.  So on entry we get the split count, which is two counts (begin_split and end_split).  Once we start a split by incrementing
+			begin_split all other threads will either see that the split count has incremented or that another thread is doing the split because the two
+			counts are not the same and so a split happened while the second thread was in the tree.
+		*/
+
+		if (context->split_count.begin != context->split_count.end)
+			{
+			/*
+				A split was happening when we entered the tree so we fail. This is because our return path might now be invalid an so we might not
+				be able to update somewhere in the tree (that is on the return path from the recursion)
+			*/
+			return false;
+			}
+
+		/*
+			Increase the split count start
+		*/
+		auto another = context->tree->split_count.load();
+		another.begin++;
+
+		/*
+			Make sure no one else has split in the mean time.
+			If our copy of the split count doesn't match that of the tree the someone else did a split so we retry.
+			Otherwise we take the lock and we get to split.
+
+			Note that this will do a CMPXCHG16B as sizeof(another) == 16
+		*/
+		if (!context->tree->split_count.compare_exchange_strong(context->split_count, another))
+			return false;
+
+		/*
+			Update our copy of the split count - so that a compare_exchange() will work when we release the lock
+		*/
+		context->split_count.begin++;
+
+		return true;
+		}
+
+	/*
+		NODE::RELEASE_LOCK()
+		--------------------
+		Release the split lock
+	*/
+	void node::release_lock(context *context)
+		{
+		auto another = context->split_count;
+		another.end++;
+		if (!context->tree->split_count.compare_exchange_strong(context->split_count, another))
+			{
+/*
+FIX THIS:
+Turn the above line into an assignment rather than a compare_exchange_stong()
+*/
+			puts("SOMETHING WENT WRONG - THE LOCK COUNT IS WRONG!!!!");
+			exit(1);
+			}
+		/*
+			We should update context->split.end, but there is no point as it will never be used again.
+		*/
 		}
 
 	/*
@@ -273,55 +351,42 @@ namespace k_tree
 				1. a value less than max_children (in which case we can put the object there) as no splitting going on
 				2. a slot larger than max_children (in which case someone else wants to split this node so we return result_retry to signal that the thread should try again)
 				3. the max_children slot (in which case we split)
-			In case 3, we split into two new nodes and so we do not need to lock the tree because all subsequent
+			In case 3, we split into two new nodes.  We do not need to lock the leaf because all subsequent
 			add attempts will fail as the node is full. Since we never discard the node, the node will always be full
 			so any threads currently in the tree (and that end up here) will fail until the tree is re-structured.
-			The tree update for a split happens at the level above, so in this case we do the grunt work here (without
-			blocking) and return result_split to tell the level above to update the tree
+			The tree update for a split happens at the level above, so in this case we do the grunt work here
+			and return result_split to tell the level above to update the tree
 		*/
-		size_t my_slot = children++;				// this is atomic so we get a guaranteed unique location
+		size_t my_slot = children++;				// this is atomic so we get a guaranteed unique location. Between here and use we can guaraneett that child[children] == nullptr as child[] is initialised to 0
 
-		if (my_slot > max_children)
-			return result_retry;						// fail as we'll over-fill a leaf and another thread is already in line to split it
-		else if (my_slot == max_children)
+		if (my_slot < max_children)
 			{
 			/*
-				We're only alowed to split if the return path hasn't changed.
-				This can be guaranteed if the split count hasn't changed. If it has the we need to undo the slot assignment (atomically) and return re-try.
-				We have the old split count stored in context->split_count and we want to increase the count in the tree the (effectively) take a lock
-				if we're allowed, or fail if we're not allowed so we can compare-and-swap, all in the knowledge that since children is now equal to
-				max_children, that all other split attempts failed.  So if compare-and-swap fails then we can undo the slot assignment and force a retry.
-
-				Note that the split_count is counting two things, entry and exit from the lock.  This is because a thread might start a split and then get
-				swapped out.  A second thread enters, gets the split count, notices a split is needed, does the split and exits all while the first thread is
-				swapped out.  So on entry we get the split count, which is two counts (begin_split and end_split).  Once we start a split by incrementing
-				begin_split all other threads will either see that the split count has incremented or that another thread is doing the split because the two
-				counts are not the same and so a split happened while the second thread is in the tree.
+				We have a slot and we can fill it without a split
 			*/
-
+			child[my_slot] = node::new_node(context->memory, data);
+			return result_success;
+			}
+		else if (my_slot > max_children)
+			return result_retry;						// fail as we'll over-fill a leaf and another thread is already in line to split it
+		else
+			{
 			/*
-				FIX: what order to do the comparison?  Probably have to check that begin_split == end_split first.
+				Get the lock if we can (and signal a retry if we cannot
 			*/
-			if (!context->tree->split_count.compare_exchange_strong(context->split_count, context->split_count + 1))
+			if (!take_lock(context))
 				{
-				children--;
+				children--;					// free up the slot for someone else (or the retry that will happen)
 				return result_retry;
 				}
-			context->split_count++;
-			/*
-				At this point, anything in the tree will fail because split_count is has changed, and anything entering the tree will see that begin_split
-				and end_split are different, and so can fail on either case.
-			*/
-
-
-
-
 
 			/*
-				Now we have the lock and can update the tree knowing no one else can
+				At this point, any one in the tree who wants to split will fail because we have the lock.  So we can update the tree knownign that one one else can.
+				But we don't actually update the tree, we do the split then tell the node above to update the tree
+
+IT SHOULD BE POSSIBLE TO PUT THE LOCK AFTER THE SPLIT THEN FAIL - IT'LL WASTE MORE MEMORY, BUT MIGHT BE FASTER
 			*/
-			node *another = node::new_node(context->memory, data);
-			child[my_slot] = another;
+			child[my_slot] = node::new_node(context->memory, data);
 
 			split(context->memory, child_1, child_2);
 			(*child_1)->compute_mean();
@@ -329,20 +394,18 @@ namespace k_tree
 
 			return result_split;
 			}
-		else
-			{
-			node *another = node::new_node(context->memory, data);
-			child[my_slot] = another;
-
-			return result_success;
-			}
 		}
 
 	/*
 		NODE::ADD_TO_NODE()
 		-------------------
 		Add the given data to the current tree at or below this point.
-		Returns whether or not there was a split (and so the node above must do a replacement and an add)
+		Returns:
+			result_success: The data was added to the tree (here or below) successfully
+			result_retry: The data failed to be added to the tree because a split is in action
+			result_split: The node above must do a replacement and an add
+
+		NOTE: if retry_split was returned then we have the lock and must unlock once the split has finished propegating
 	*/
 	node::result node::add_to_node(context *context, object *data, node **child_1, node **child_2)
 		{
@@ -356,9 +419,16 @@ namespace k_tree
 			if (did_split == result_split)
 				{
 				did_split = result_success;
+				/*
+					A split happened below, we must do a replace and add, and we have the lock
+				*/
 				child[best_child] = *child_1;
 				child[children] = *child_2;
 				children++;
+				/*
+					As children is std::atomic<>, there is a squential consistency barrier here so we know that child[children] has been updated before
+					children was incremented - so all the pointers are valid.
+				*/
 
 				if (children > max_children)
 					{
@@ -366,7 +436,12 @@ namespace k_tree
 					(*child_1)->compute_mean();
 					(*child_2)->compute_mean();
 					did_split = result_split;
+					/*
+						Keep the lock.  It will be released by the next (or higher) node up the tree.
+					*/
 					}
+				else
+					release_lock(context);
 				}
 			}
 
