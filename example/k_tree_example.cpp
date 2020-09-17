@@ -167,21 +167,23 @@ void buffer_to_list(std::vector<uint8_t *> &line_list, std::string &buffer)
 	-------------
 	Entry point for each thread.  The work is to add some nodes from vector_list to tree
 */
-void thread_work(k_tree::allocator *memory, k_tree::k_tree *tree, std::vector<job> *work_list)
+void thread_work(k_tree::k_tree *tree, std::vector<job> *work_list)
 	{
+	k_tree::allocator memory;
+
 	size_t end = work_list->size();
 	size_t index = 0;
 
 	while (index < end)
 		{
 		job *task = &(*work_list)[index];
-		if (!task->has_been_processed)
+		if (task->has_been_processed)
 			index++;
 		else
 			{
 			uint8_t expected = false;
 			if (task->has_been_processed.compare_exchange_strong(expected, true))
-				tree->push_back(memory, task->vector);
+				tree->push_back(&memory, task->vector);
 			index++;
 			}
 		}
@@ -263,17 +265,17 @@ int build(char *infilename, size_t tree_order, char *outfilename)
 			}
 		while (*pos != '\0');
 
-		vector_list.push_back(objectionable);
+		vector_list.push_back(job(objectionable));
 		}
 
 	/*
 		Add them to the tree
 		Start a bunch of threads to each do some of the work
 	*/
-size_t thread_count = 1;
+size_t thread_count = 10;
 	std::vector<std::thread> thread_pool;
 	for (size_t which = 0; which < thread_count ; which++)
-		thread_pool.push_back(std::thread(thread_work, &memory, &tree, &vector_list));
+		thread_pool.push_back(std::thread(thread_work, &tree, &vector_list));
 	/*
 		Wait until all the threads have finished
 	*/

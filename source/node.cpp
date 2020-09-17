@@ -90,7 +90,7 @@ namespace k_tree
 		if (child_count > max_children)
 			child_count = max_children;
 
-		if (child[child_count - 1] == nullptr)
+		if (child_count > 0 && child[child_count - 1] == nullptr)
 			child_count--;
 
 		return child_count;
@@ -277,7 +277,6 @@ namespace k_tree
 			begin_split all other threads will either see that the split count has incremented or that another thread is doing the split because the two
 			counts are not the same and so a split happened while the second thread was in the tree.
 		*/
-
 		if (context->split_count.begin != context->split_count.end)
 			{
 			/*
@@ -364,7 +363,10 @@ Turn the above line into an assignment rather than a compare_exchange_stong()
 			/*
 				We have a slot and we can fill it without a split
 			*/
-			child[my_slot] = node::new_node(context->memory, data);
+			auto got = node::new_node(context->memory, data);
+// flush
+std::atomic_thread_fence(std::memory_order_seq_cst);
+			child[my_slot] = got;
 			return result_success;
 			}
 		else if (my_slot > max_children)
@@ -377,6 +379,8 @@ Turn the above line into an assignment rather than a compare_exchange_stong()
 			if (!take_lock(context))
 				{
 				children--;					// free up the slot for someone else (or the retry that will happen)
+// flush
+std::atomic_thread_fence(std::memory_order_seq_cst);
 				return result_retry;
 				}
 
@@ -386,7 +390,10 @@ Turn the above line into an assignment rather than a compare_exchange_stong()
 
 IT SHOULD BE POSSIBLE TO PUT THE LOCK AFTER THE SPLIT THEN FAIL - IT'LL WASTE MORE MEMORY, BUT MIGHT BE FASTER
 			*/
-			child[my_slot] = node::new_node(context->memory, data);
+			auto got = node::new_node(context->memory, data);
+// flush
+			std::atomic_thread_fence(std::memory_order_seq_cst);
+			child[my_slot] = got;
 
 			split(context->memory, child_1, child_2);
 			(*child_1)->compute_mean();
@@ -424,9 +431,11 @@ IT SHOULD BE POSSIBLE TO PUT THE LOCK AFTER THE SPLIT THEN FAIL - IT'LL WASTE MO
 				*/
 				child[best_child] = *child_1;
 				child[children] = *child_2;
+// flush
+std::atomic_thread_fence(std::memory_order_seq_cst);
 				children++;
 				/*
-					As children is std::atomic<>, there is a squential consistency barrier here so we know that child[children] has been updated before
+					there is a squential consistency barrier here so that we know that child[children] has been updated before
 					children was incremented - so all the pointers are valid.
 				*/
 
@@ -446,9 +455,10 @@ IT SHOULD BE POSSIBLE TO PUT THE LOCK AFTER THE SPLIT THEN FAIL - IT'LL WASTE MO
 			}
 
 		/*
-			Update the mean for the current node as data has been added somewhere below here.
+			Update the mean for the current node as data has been added somewhere below here.  But only if we added to the node (i.e. not on a retry).
 		*/
-		compute_mean();
+		if (did_split != result_retry)
+			compute_mean();
 
 		/*
 			Return whether or not we caused a split, and therefore replacement is necessary

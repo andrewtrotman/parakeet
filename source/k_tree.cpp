@@ -51,6 +51,8 @@ namespace k_tree
 			node *leaf = parameters->new_node(memory, data);
 			root = parameters->new_node(memory, leaf);
 			root->compute_mean();
+// flush
+std::atomic_thread_fence(std::memory_order_seq_cst);
 			node::release_lock(&context);
 			}
 		else
@@ -62,13 +64,16 @@ namespace k_tree
 		*/
 		if (did_split == node::result_split)
 			{
+			child_1->compute_mean();
+			child_2->compute_mean();
+
 			node *new_root = parameters->new_node(memory, child_1);
 			new_root->child[1] = child_2;
 			new_root->children = 2;
+			new_root->compute_mean();
+// flush
+std::atomic_thread_fence(std::memory_order_seq_cst);
 			root = new_root;
-			child_1->compute_mean();
-			child_2->compute_mean();
-			root->compute_mean();
 			/*
 				The tree is locked, so we unlock it
 			*/
