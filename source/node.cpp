@@ -6,6 +6,7 @@
 */
 #include <stdint.h>
 
+#include <thread>
 #include <limits>
 #include <iomanip>
 
@@ -176,7 +177,7 @@ namespace k_tree
 		size_t assignment[max_children + 1];
 		size_t first_cluster_size;
 		size_t second_cluster_size;
-		float old_sum_distance = std::numeric_limits<float>::max();;
+		float old_sum_distance = std::numeric_limits<float>::max();
 		float new_sum_distance = old_sum_distance / 2;
 
 		/*
@@ -188,11 +189,22 @@ namespace k_tree
 		node *child_2 = *child_2_out = new_node(memory, (node *)nullptr);
 
 		/*
-			Start with the first and last members of the current node.  It should really be 2 random elements, but close enough!
-FIX: Choose one at random (the first one will do) then choose the one furthest away as the second centre.
+			Start with the first member, then find the furthest away member and use that as the second point
 		*/
 		*centroid_1 = *child[0].load()->centroid;
-		*centroid_2 = *child[max_children].load()->centroid;
+
+		size_t best_choice = 1;
+		double smallest_distance = centroid_1->distance_squared(child[1].load()->centroid);
+		for (size_t which = 2; which <= max_children; which++)
+			{
+			float distance = centroid_1->distance_squared(child[which].load()->centroid);
+			if (distance < smallest_distance)
+				{
+				best_choice = which;
+				smallest_distance = distance;
+				}
+			}
+		*centroid_2 = *child[best_choice].load()->centroid;
 
 		/*
 			The stopping condition is that the sum squared distance from the cluster centres has become constant (so no more shuffling can happen)
@@ -326,6 +338,8 @@ FIX: Choose one at random (the first one will do) then choose the one furthest a
 		*/
 		context->split_count.begin++;
 
+//std::cout << "GRANT:" << lock_times.load() << ":" << std::this_thread::get_id() << "\n";
+
 		return true;
 		}
 
@@ -350,6 +364,7 @@ Turn the above line into an assignment rather than a compare_exchange_stong()
 		/*
 			We should update context->split.end, but there is no point as it will never be used again.
 		*/
+//std::cout << "RELEASE:" << std::this_thread::get_id() << "\n";
 		}
 
 	/*
@@ -427,7 +442,10 @@ int x = 0;
 					/* Nothing */		// should call node::number_of_children() instead of this
 					}
 
-			split(context->memory, child_1, child_2);
+			bool split_worked;
+			split_worked = split(context->memory, child_1, child_2);
+if (!split_worked)
+int x = 0;
 			(*child_1)->compute_mean();
 			(*child_2)->compute_mean();
 
@@ -473,7 +491,10 @@ std::atomic_thread_fence(std::memory_order_seq_cst);
 
 				if (children > max_children)
 					{
-					split(context->memory, child_1, child_2);
+					bool split_worked;
+					split_worked = split(context->memory, child_1, child_2);
+if (!split_worked)
+int x = 0;
 					(*child_1)->compute_mean();
 					(*child_2)->compute_mean();
 					did_split = result_split;
