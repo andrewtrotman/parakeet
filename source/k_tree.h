@@ -30,8 +30,7 @@ namespace k_tree
 			std::atomic<node::context::in_out_count> split_count;		// the number of splits we've seen (counts starts an finishes of the split)
 
 			node *parameters;				// the sole purpose of parameters is to store the order (branchine factor) of the tree and the width of the vectors it holds.
-			node *root;						// the root of the k-tree
-			allocator *memory;			// all memory allocation happens through this allocator
+			std::atomic<node *>root;	// the root of the k-tree (must be std::atomic<> because it is written to and read from multiple threads without a barrier).
 
 		public:
 			/*

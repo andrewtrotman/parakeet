@@ -39,6 +39,16 @@ namespace k_tree
 				} result;
 
 			/*
+				ENUM SPLIT_STATE
+				----------------
+			*/
+			typedef enum
+				{
+				state_unsplit,			// this node has never been split
+				state_split				// this has been split or is being split (and so the backpath is invalid)
+				} split_state;
+
+			/*
 				CLASS NODE::CONTEXT
 				-------------------
 				The current context of a node in the tree (which tree, which allocator, etc)
@@ -89,11 +99,12 @@ namespace k_tree
 			static constexpr float float_resolution = 0.000001;														// floats his close are considered equal
 
 		public:
-			size_t max_children;					//	the order of the tree at this node (constant per tree as it propegates when a new node is created)
-			std::atomic<size_t> children;		// the number of children currently at this node
-			node **child;							// the immediate descendants of this node
-			object *centroid;						// the centroid of this cluster
-			size_t leaves_below_this_point;	// the number of leaves below this node
+			std::atomic<split_state> state;			// is the node undergoing split or has it already been split?
+			size_t max_children;							//	the order of the tree at this node (constant per tree as it propegates when a new node is created)
+			std::atomic<size_t> children;				// the number of children currently at this node
+			std::atomic<node *>*child;					// the immediate descendants of this node
+			object *centroid;								// the centroid of this cluster
+			size_t leaves_below_this_point;			// the number of leaves below this node
 
 		private:
 			/*
@@ -164,8 +175,11 @@ namespace k_tree
 				NODE::SPLIT()
 				-------------
 				Split this node into two new children - knowing that the node is full (i.e child[0..max_children] are all non-null)
+				Returns:
+					True on success (the data was split into 2 clusters)
+					Fase on failure (the data all ended up in one cluster)
 			*/
-			void split(allocator *memory, node **child_1_out, node **child_2_out) const;
+			bool split(allocator *memory, node **child_1_out, node **child_2_out) const;
 
 			/*
 				NODE::ADD_TO_LEAF()

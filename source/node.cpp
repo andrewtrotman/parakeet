@@ -19,6 +19,7 @@ namespace k_tree
 		------------
 	*/
 	node::node() :
+		state(state_unsplit),
 		max_children(0),
 		children(0),
 		child(nullptr),
@@ -38,6 +39,11 @@ namespace k_tree
 		answer->max_children = max_children;
 		answer->centroid = data;
 
+		/*
+			Make sure this has been done before proceeding.
+		*/
+		std::atomic_thread_fence(std::memory_order_seq_cst);
+
 		return answer;
 		}
 
@@ -49,7 +55,9 @@ namespace k_tree
 		{
 		node *answer = new (memory->malloc(sizeof(node))) node();
 		answer->max_children = max_children;
-		answer->child = (new (memory->malloc(sizeof(node *) * (max_children + 1))) node *[max_children + 1]),
+		size_t bytes = sizeof(*answer->child) * (max_children + 1);
+		answer->child = new (memory->malloc(bytes)) std::atomic<node *>[max_children + 1];
+		memset(answer->child, 0, bytes);
 		answer->centroid = centroid->new_object(memory);
 
 		if (first_child == nullptr)
@@ -59,6 +67,11 @@ namespace k_tree
 			answer->child[0] = first_child;
 			answer->children = 1;
 			}
+
+		/*
+			Make sure this has been done before proceeding.
+		*/
+		std::atomic_thread_fence(std::memory_order_seq_cst);
 
 		return answer;
 		}
@@ -76,22 +89,20 @@ namespace k_tree
 	/*
 		NODE::NUMBER_OF_CHILDREN()
 		--------------------------
-		Correctly return the number of children at this node, under the knowledge that the
-		node might be undergoing update at this very moment
+		Correctly return the number of children at this node, under the knowledge that the node might be undergoing update at this very moment
 	*/
 	size_t node::number_of_children(void) const
 		{
 		size_t child_count = children;				// since this can change while this method is running is another thread updates the count
+		child_count = std::min(child_count, max_children);
 		/*
 			There is a set of potential race conditions here that we need to take care of:
-				children might have been updated, but child[children] might not have been updated yet
-				the node is over-full and children > max_children
+			Children might have been updated, but any one (or more) of the child[] might still be nullptr because it has not been
+			written to yet.  So we adjust the count to stop at the first nullptr in the array
 		*/
-		if (child_count > max_children)
-			child_count = max_children;
-
-		if (child_count > 0 && child[child_count - 1] == nullptr)
-			child_count--;
+		for (size_t true_count = 0; true_count < child_count; true_count++)
+			if (child[true_count] == nullptr)
+				return true_count;
 
 		return child_count;
 		}
@@ -109,14 +120,14 @@ namespace k_tree
 			Initialise to the distance to the first element in the list
 		*/
 		size_t closest_child = 0;
-		float min_distance = what->distance_squared(child[0]->centroid);
+		float min_distance = what->distance_squared(child[0].load()->centroid);
 
 		/*
 			Now check the distance to the others
 		*/
 		for (size_t which = 1; which < child_count; which++)
 			{
-			float distance = what->distance_squared(child[which]->centroid);
+			float distance = what->distance_squared(child[which].load()->centroid);
 			if (distance < min_distance)
 				{
 				min_distance = distance;
@@ -137,24 +148,29 @@ namespace k_tree
 	void node::compute_mean(void)
 		{
 		size_t child_count = number_of_children();
+		size_t new_leaf_count = 0;
 
-		leaves_below_this_point = 0;
 		centroid->zero();
 		for (size_t which = 0; which < child_count; which++)
 			{
-			leaves_below_this_point += child[which]->leaves_below_this_point;
-			centroid->fused_multiply_add(*child[which]->centroid, child[which]->leaves_below_this_point);
+			auto current_child = child[which].load();
+			new_leaf_count += current_child->leaves_below_this_point;
+			centroid->fused_multiply_add(*current_child->centroid, current_child->leaves_below_this_point);
 			}
 
-		*centroid /= leaves_below_this_point;
+		leaves_below_this_point = new_leaf_count;
+		*centroid /= new_leaf_count;
 		}
 
 	/*
 		NODE::SPLIT()
 		-------------
 		Split this node into two new children - knowing that the node is full (i.e child[0..max_children] are all non-null)
+		Returns:
+			True on success (the data was split into 2 clusters)
+			Fase on failure (the data all ended up in one cluster)
 	*/
-	void node::split(allocator *memory, node **child_1_out, node **child_2_out) const
+	bool node::split(allocator *memory, node **child_1_out, node **child_2_out) const
 		{
 		size_t place_in;
 		size_t assignment[max_children + 1];
@@ -173,9 +189,10 @@ namespace k_tree
 
 		/*
 			Start with the first and last members of the current node.  It should really be 2 random elements, but close enough!
+FIX: Choose one at random (the first one will do) then choose the one furthest away as the second centre.
 		*/
-		*centroid_1 = *child[0]->centroid;
-		*centroid_2 = *child[max_children]->centroid;
+		*centroid_1 = *child[0].load()->centroid;
+		*centroid_2 = *child[max_children].load()->centroid;
 
 		/*
 			The stopping condition is that the sum squared distance from the cluster centres has become constant (so no more shuffling can happen)
@@ -190,8 +207,8 @@ namespace k_tree
 				/*
 					Compute the distance (squared) to each of the two new cluster centroids
 				*/
-				float distance_to_first = centroid_1->distance_squared(child[which]->centroid);
-				float distance_to_second = centroid_2->distance_squared(child[which]->centroid);
+				float distance_to_first = centroid_1->distance_squared(child[which].load()->centroid);
+				float distance_to_second = centroid_2->distance_squared(child[which].load()->centroid);
 
 				/*
 					Choose a cluster, tie_break on the size of the cluster (put in the smallest to avoid empty clusters)
@@ -228,9 +245,9 @@ namespace k_tree
 			for (size_t which = 0; which <= max_children; which++)
 				{
 				if (assignment[which] == 0)
-					*centroid_1 += *child[which]->centroid;
+					*centroid_1 += *child[which].load()->centroid;
 				else
-					*centroid_2 += *child[which]->centroid;
+					*centroid_2 += *child[which].load()->centroid;
 				}
 
 			/*
@@ -246,14 +263,16 @@ namespace k_tree
 		for (size_t which = 0; which <= max_children; which++)
 			if (assignment[which] == 0)
 				{
-				child_1->child[child_1->children] = child[which];
+				child_1->child[child_1->children] = child[which].load();
 				child_1->children++;
 				}
 			else
 				{
-				child_2->child[child_2->children] = child[which];
+				child_2->child[child_2->children] = child[which].load();
 				child_2->children++;
 				}
+
+		return first_cluster_size != 0 && second_cluster_size != 0;
 		}
 
 	/*
@@ -356,7 +375,7 @@ Turn the above line into an assignment rather than a compare_exchange_stong()
 			The tree update for a split happens at the level above, so in this case we do the grunt work here
 			and return result_split to tell the level above to update the tree
 		*/
-		size_t my_slot = children++;				// this is atomic so we get a guaranteed unique location. Between here and use we can guaraneett that child[children] == nullptr as child[] is initialised to 0
+		size_t my_slot = children++;				// this is atomic so we get a guaranteed unique location. Between here and use we can guarantee that child[children] == nullptr as child[] is initialised to 0
 
 		if (my_slot < max_children)
 			{
@@ -364,36 +383,49 @@ Turn the above line into an assignment rather than a compare_exchange_stong()
 				We have a slot and we can fill it without a split
 			*/
 			auto got = node::new_node(context->memory, data);
-// flush
-std::atomic_thread_fence(std::memory_order_seq_cst);
 			child[my_slot] = got;
 			return result_success;
 			}
-		else if (my_slot > max_children)
-			return result_retry;						// fail as we'll over-fill a leaf and another thread is already in line to split it
 		else
 			{
 			/*
-				Get the lock if we can (and signal a retry if we cannot
+				State an intention to split this node
+			*/
+			split_state current_state = state_unsplit;
+			if (!state.compare_exchange_strong(current_state, state_split))
+				return result_retry;						// Someone else is already splitting (or has split) this node so retry the insertion
+
+			/*
+				Get the lock if we can (and signal a retry if we cannot)
 			*/
 			if (!take_lock(context))
 				{
-				children--;					// free up the slot for someone else (or the retry that will happen)
-// flush
-std::atomic_thread_fence(std::memory_order_seq_cst);
+				/*
+					We have the lock on the current node, so release that and signal a retry
+				*/
+				state = state_unsplit;
 				return result_retry;
 				}
 
 			/*
-				At this point, any one in the tree who wants to split will fail because we have the lock.  So we can update the tree knownign that one one else can.
-				But we don't actually update the tree, we do the split then tell the node above to update the tree
-
-IT SHOULD BE POSSIBLE TO PUT THE LOCK AFTER THE SPLIT THEN FAIL - IT'LL WASTE MORE MEMORY, BUT MIGHT BE FASTER
+				At this point the node has never been split and we have permission to split it.
+				We also know that the last slot has never been written into and so its ours
 			*/
+			my_slot = max_children;
 			auto got = node::new_node(context->memory, data);
-// flush
-			std::atomic_thread_fence(std::memory_order_seq_cst);
 			child[my_slot] = got;
+
+			/*
+				Before we do a split we need to make sure all other processes that are writing to the child[] array of this node have completed.  This can happen
+				because childen is incremented by two threads, and the second tried to do the split before the first updates the pointer in the child[] array.  To
+				catch this we spin until the array is full (i.e. contains no nullptr values)
+			*/
+			for (auto p = child; p < child + max_children; p++)
+				while (*p == nullptr)
+					{
+int x = 0;
+					/* Nothing */		// should call node::number_of_children() instead of this
+					}
 
 			split(context->memory, child_1, child_2);
 			(*child_1)->compute_mean();
@@ -417,17 +449,17 @@ IT SHOULD BE POSSIBLE TO PUT THE LOCK AFTER THE SPLIT THEN FAIL - IT'LL WASTE MO
 	node::result node::add_to_node(context *context, object *data, node **child_1, node **child_2)
 		{
 		node::result did_split = result_success;
-		if (child[0]->isleaf())
+		if (child[0].load()->isleaf())
 			did_split = add_to_leaf(context, data, child_1, child_2);
 		else
 			{
 			size_t best_child = closest(data);
-			did_split = child[best_child]->add_to_node(context, data, child_1, child_2);
+			did_split = child[best_child].load()->add_to_node(context, data, child_1, child_2);
 			if (did_split == result_split)
 				{
 				did_split = result_success;
 				/*
-					A split happened below, we must do a replace and add, and we have the lock
+					A split happened below, we must do a replace and add, remember that we already have the lock
 				*/
 				child[best_child] = *child_1;
 				child[children] = *child_2;
@@ -475,8 +507,9 @@ std::atomic_thread_fence(std::memory_order_seq_cst);
 		{
 		stream << children << ' ' << leaves_below_this_point << ' ' << *centroid << "\n";
 
-		for (size_t who = 0; who < children; who++)
-			child[who]->text_render(stream);
+		size_t child_count = children.load() < max_children ? children.load() : max_children;
+		for (size_t who = 0; who < child_count; who++)
+			child[who].load()->text_render(stream);
 		}
 	}
 

@@ -17,8 +17,7 @@ namespace k_tree
 	k_tree::k_tree(allocator *memory, size_t tree_order, size_t vector_order) :
 		split_count(),
 		parameters(nullptr),
-		root(nullptr),
-		memory(memory)
+		root(nullptr)
 		{
 		parameters = new (memory->malloc(sizeof(*parameters))) node();
 		parameters->max_children = tree_order;
@@ -48,19 +47,21 @@ namespace k_tree
 			*/
 			if (!node::take_lock(&context))
 				return node::result_retry;
+
 			node *leaf = parameters->new_node(memory, data);
-			root = parameters->new_node(memory, leaf);
-			root->compute_mean();
-// flush
-std::atomic_thread_fence(std::memory_order_seq_cst);
+			node *new_root = parameters->new_node(memory, leaf);
+			new_root->compute_mean();
+
+			root = new_root;
+
 			node::release_lock(&context);
 			}
 		else
-			did_split = root->add_to_node(&context, data, &child_1, &child_2);
+			did_split = root.load()->add_to_node(&context, data, &child_1, &child_2);
 
 		/*
 			Adding caused a split at the top level so we create a new root consisting of the two children.  If this happens then
-			the tree is also left locked.
+			the tree is also already locked.
 		*/
 		if (did_split == node::result_split)
 			{
@@ -116,7 +117,7 @@ std::atomic_thread_fence(std::memory_order_seq_cst);
 	void k_tree::text_render(std::ostream &stream) const
 		{
 		if (root != nullptr)
-			root->text_render(stream);
+			root.load()->text_render(stream);
 		}
 
 	/*

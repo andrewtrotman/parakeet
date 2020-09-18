@@ -88,6 +88,11 @@ namespace k_tree
 				answer->vector = (float *)allocator->malloc(sizeof(*vector) * width);
 				memset(answer->vector, 0, sizeof(*answer->vector ) * width);
 
+				/*
+					Make sure we've flushed to memory before we return (to prevent instruction re-ordering)
+				*/
+				std::atomic_thread_fence(std::memory_order_seq_cst);
+
 				return answer;
 				}
 

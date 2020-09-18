@@ -30,10 +30,11 @@ namespace k_tree
 				----------------------
 				Constructor
 			*/
-			allocator(size_t block_size = 1'073'741'824 /* 1GB */, bool use_global_malloc = false) :
+			allocator(size_t block_size = 1'073'741'824 /* 1GB */, bool use_global_malloc = true) :
 				chunk(nullptr),
 				size(block_size),
-				used(block_size)
+				used(block_size),
+				use_global_malloc(use_global_malloc)
 				{
 				/* Nothing */
 				}
@@ -59,7 +60,6 @@ namespace k_tree
 				if (use_global_malloc)
 					{
 					uint8_t *data = new uint8_t [bytes];
-					memset(data, 0, bytes);
 					return (void *)data;
 					}
 				else
@@ -72,7 +72,6 @@ namespace k_tree
 						}
 
 					uint8_t *start = chunk + used;
-					memset(start, 0, bytes);
 					used += bytes;
 					return (void *)start;
 					}

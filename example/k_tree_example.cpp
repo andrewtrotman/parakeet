@@ -167,10 +167,8 @@ void buffer_to_list(std::vector<uint8_t *> &line_list, std::string &buffer)
 	-------------
 	Entry point for each thread.  The work is to add some nodes from vector_list to tree
 */
-void thread_work(k_tree::k_tree *tree, std::vector<job> *work_list)
+void thread_work(k_tree::allocator *memory, k_tree::k_tree *tree, std::vector<job> *work_list)
 	{
-	k_tree::allocator memory;
-
 	size_t end = work_list->size();
 	size_t index = 0;
 
@@ -183,7 +181,10 @@ void thread_work(k_tree::k_tree *tree, std::vector<job> *work_list)
 			{
 			uint8_t expected = false;
 			if (task->has_been_processed.compare_exchange_strong(expected, true))
-				tree->push_back(&memory, task->vector);
+				{
+std::cout << index << "\n";
+				tree->push_back(memory, task->vector);
+				}
 			index++;
 			}
 		}
@@ -275,7 +276,10 @@ int build(char *infilename, size_t tree_order, char *outfilename)
 size_t thread_count = 10;
 	std::vector<std::thread> thread_pool;
 	for (size_t which = 0; which < thread_count ; which++)
-		thread_pool.push_back(std::thread(thread_work, &tree, &vector_list));
+		thread_pool.push_back(std::thread(thread_work, new k_tree::allocator(), &tree, &vector_list));
+//FIX THIS LEAKS THE ALOCATOR.
+
+
 	/*
 		Wait until all the threads have finished
 	*/
