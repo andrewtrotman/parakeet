@@ -279,12 +279,16 @@ size_t thread_count = 10;
 		thread_pool.push_back(std::thread(thread_work, new k_tree::allocator(), &tree, &vector_list));
 //FIX THIS LEAKS THE ALOCATOR.
 
-
 	/*
 		Wait until all the threads have finished
 	*/
 	for (auto &thread : thread_pool)
 		thread.join();
+
+	/*
+		Fix the leaf count value
+	*/
+	tree.normalise_counts();
 
 	/*
 		Dump the tree to the output file

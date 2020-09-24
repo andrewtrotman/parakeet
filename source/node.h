@@ -128,6 +128,16 @@ namespace k_tree
 			*/
 			static void release_lock(context *context);
 
+			/*
+				NODE::SPLIT()
+				-------------
+				Split this node into two new children - knowing that the node is full (i.e child[0..max_children] are all non-null)
+				Returns:
+					True on success (the data was split into 2 clusters)
+					Fase on failure (the data all ended up in one cluster)
+			*/
+			bool split(allocator *memory, node **child_1_out, node **child_2_out, size_t initial_first_cluster) const;
+
 		public:
 			/*
 				NODE::NEW_NODE()
@@ -196,6 +206,13 @@ namespace k_tree
 				Returns whether or not there was a split (and so the node above must do a replacement and an add)
 			*/
 			node::result add_to_node(context *context, object *data, node **child_1, node **child_2);
+
+			/*
+				NODE::NORMALISE_COUNTS()
+				------------------------
+				Fix the broken leaved-below counts that happened because of parallel updates
+			*/
+			void normalise_counts(void);
 
 			/*
 				NODE::TEXT_RENDER()

@@ -32,6 +32,14 @@ namespace k_tree
 			node *parameters;				// the sole purpose of parameters is to store the order (branchine factor) of the tree and the width of the vectors it holds.
 			std::atomic<node *>root;	// the root of the k-tree (must be std::atomic<> because it is written to and read from multiple threads without a barrier).
 
+		private:
+			/*
+				K_TREE::ATTEMPT_PUSH_BACK()
+				---------------------------
+				Add to the tree
+			*/
+			node::result attempt_push_back(allocator *memory, object *data);
+
 		public:
 			/*
 				K_TREE::K_TREE()
@@ -39,13 +47,6 @@ namespace k_tree
 				Constructor
 			*/
 			k_tree(allocator *memory, size_t tree_order, size_t vector_order);
-
-			/*
-				K_TREE::ATTEMPT_PUSH_BACK()
-				---------------------------
-				Add to the tree
-			*/
-			node::result attempt_push_back(allocator *memory, object *data);
 
 			/*
 				K_TREE::PUSH_BACK()
@@ -60,6 +61,15 @@ namespace k_tree
 				Return an example vector
 			*/
 			object *get_example_object(void);
+
+			/*
+				K_TREE::NORMALISE_COUNTS()
+				--------------------------
+				Fix the broken leaved-below counts that happened because of parallel updates.
+				This does a single-threaded sequential linear pass over the entre tree counting
+				up the number of leaves at each node.
+			*/
+			void normalise_counts(void);
 
 			/*
 				K_TREE::TEXT_RENDER()

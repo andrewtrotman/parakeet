@@ -171,7 +171,7 @@ namespace k_tree
 			True on success (the data was split into 2 clusters)
 			Fase on failure (the data all ended up in one cluster)
 	*/
-	bool node::split(allocator *memory, node **child_1_out, node **child_2_out) const
+	bool node::split(allocator *memory, node **child_1_out, node **child_2_out, size_t initial_first_cluster) const
 		{
 		size_t place_in;
 		size_t assignment[max_children + 1];
@@ -191,7 +191,7 @@ namespace k_tree
 		/*
 			Start with the first member, then find the furthest away member and use that as the second point
 		*/
-		*centroid_1 = *child[0].load()->centroid;
+		*centroid_1 = *child[initial_first_cluster].load()->centroid;
 
 		size_t best_choice = 1;
 		double smallest_distance = centroid_1->distance_squared(child[1].load()->centroid);
@@ -285,6 +285,43 @@ namespace k_tree
 				}
 
 		return first_cluster_size != 0 && second_cluster_size != 0;
+		}
+
+	/*
+		NODE::SPLIT()
+		-------------
+		Split this node into two new children - knowing that the node is full (i.e child[0..max_children] are all non-null)
+		Returns:
+			True on success (the data was split into 2 clusters)
+			Fase on failure (the data all ended up in one cluster)
+	*/
+	bool node::split(allocator *memory, node **child_1_out, node **child_2_out) const
+		{
+		bool did_split = split(memory, child_1_out, child_2_out, 0);
+		if (!did_split)
+			{
+			/*
+				We failed to split. This might be because the node consists of vectors that are identical, or it might be
+				that the vectors have all been moving while we did the clistering so we ended up with everything in one
+				clister.  Assuming the former, we'll split the clister randomly.  An alternative is to call split()
+				with a different initial starting cluster (i.e. not 0).  Or we chould check to see if we're all the
+				same vector and if so split randomly.
+			*/
+			(*child_1_out)->children = 0;
+			(*child_2_out)->children = 0;
+			for (size_t which = 0; which <= max_children; which++)
+				if ((which & 1) == 0)
+					{
+					(*child_1_out)->child[(*child_1_out)->children] = child[which].load();
+					(*child_1_out)->children++;
+					}
+				else
+					{
+					(*child_2_out)->child[(*child_2_out)->children] = child[which].load();
+					(*child_2_out)->children++;
+					}
+			}
+		return true;
 		}
 
 	/*
@@ -518,6 +555,35 @@ int x = 0;
 		*/
 		return did_split;
 		}
+
+
+		/*
+			NODE::NORMALISE_COUNTS()
+			------------------------
+			Fix the broken leaved-below counts that happened because of parallel updates
+		*/
+	void node::normalise_counts(void)
+		{
+		/*
+			Correct the counts in the children
+		*/
+		size_t child_count = children.load() < max_children ? children.load() : max_children;
+		for (size_t who = 0; who < child_count; who++)
+			child[who].load()->normalise_counts();
+
+		/*
+			Add up the counts here
+		*/
+		if (isleaf())
+			leaves_below_this_point = 1;
+		else
+			{
+			leaves_below_this_point = 0;
+			for (size_t who = 0; who < child_count; who++)
+				leaves_below_this_point += child[who].load()->leaves_below_this_point;
+			}
+		}
+
 
 	/*
 		NODE::TEXT_RENDER()

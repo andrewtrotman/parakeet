@@ -110,6 +110,16 @@ std::atomic_thread_fence(std::memory_order_seq_cst);
 		}
 
 	/*
+		K_TREE::NORMALISE_COUNTS()
+		--------------------------
+		Fix the broken node counts that happened because of parallel updates
+	*/
+	void k_tree::normalise_counts(void)
+		{
+		root.load()->normalise_counts();
+		}
+
+	/*
 		K_TREE::TEXT_RENDER()
 		---------------------
 		Serialsise a human-readable version of tree to the stream
