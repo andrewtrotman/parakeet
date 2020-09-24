@@ -116,7 +116,11 @@ std::atomic_thread_fence(std::memory_order_seq_cst);
 	*/
 	void k_tree::normalise_counts(void)
 		{
+		size_t before = root.load()->leaves_below_this_point;
 		root.load()->normalise_counts();
+		size_t after = root.load()->leaves_below_this_point;
+		if (before != after)
+			int x = 0;
 		}
 
 	/*

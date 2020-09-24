@@ -104,7 +104,7 @@ namespace k_tree
 			std::atomic<size_t> children;				// the number of children currently at this node
 			std::atomic<node *>*child;					// the immediate descendants of this node
 			object *centroid;								// the centroid of this cluster
-			size_t leaves_below_this_point;			// the number of leaves below this node
+			std::atomic<size_t> leaves_below_this_point;			// the number of leaves below this node
 
 		private:
 			/*
