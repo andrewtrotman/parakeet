@@ -52,6 +52,10 @@ namespace k_tree
 			node *new_root = parameters->new_node(memory, leaf);
 			new_root->compute_mean();
 
+			/*
+				Force the writes to happen then update root
+			*/
+			std::atomic_thread_fence(std::memory_order_seq_cst);
 			root = new_root;
 
 			node::release_lock(&context);
@@ -72,9 +76,13 @@ namespace k_tree
 			new_root->child[1] = child_2;
 			new_root->children = 2;
 			new_root->compute_mean();
-// flush
-std::atomic_thread_fence(std::memory_order_seq_cst);
+
+			/*
+				Force the writes to happen then update root
+			*/
+			std::atomic_thread_fence(std::memory_order_seq_cst);
 			root = new_root;
+
 			/*
 				The tree is locked, so we unlock it
 			*/
@@ -92,8 +100,12 @@ std::atomic_thread_fence(std::memory_order_seq_cst);
 	*/
 	void k_tree::push_back(allocator *memory, object *data)
 		{
+		/*
+			A write to the tree can result in success, retry, or split.  Split is taken care of
+			in attempt_push_back() so the only outcomes we can get are retry and success.  We
+			loop here, retrying each time, until we get success.
+		*/
 		node::result got;
-
 		do
 			got = attempt_push_back(memory, data);
 		while (got != node::result_success);
@@ -116,11 +128,7 @@ std::atomic_thread_fence(std::memory_order_seq_cst);
 	*/
 	void k_tree::normalise_counts(void)
 		{
-		size_t before = root.load()->leaves_below_this_point;
 		root.load()->normalise_counts();
-		size_t after = root.load()->leaves_below_this_point;
-		if (before != after)
-			int x = 0;
 		}
 
 	/*

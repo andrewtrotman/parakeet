@@ -12,6 +12,7 @@
 #include <thread>
 #include <fstream>
 #include <iostream>
+#include <unordered_map>
 
 #include "k_tree.h"
 
@@ -55,6 +56,25 @@ class job
 			*/
 			original.has_been_processed = true;
 			original.vector = nullptr;
+			}
+	};
+
+/*
+	CLASS WORKER()
+	--------------
+*/
+class worker
+	{
+	public:
+		k_tree::allocator memory;
+		k_tree::k_tree *tree;
+		std::vector<job> *work_list;
+	public:
+		worker(k_tree::k_tree *tree, std::vector<job> *work_list) :
+			tree(tree),
+			work_list(work_list)
+			{
+			/* Nothing */
 			}
 	};
 
@@ -167,14 +187,14 @@ void buffer_to_list(std::vector<uint8_t *> &line_list, std::string &buffer)
 	-------------
 	Entry point for each thread.  The work is to add some nodes from vector_list to tree
 */
-void thread_work(k_tree::allocator *memory, k_tree::k_tree *tree, std::vector<job> *work_list)
+void thread_work(worker *parameters)
 	{
-	size_t end = work_list->size();
+	size_t end = parameters->work_list->size();
 	size_t index = 0;
 
 	while (index < end)
 		{
-		job *task = &(*work_list)[index];
+		job *task = &(*parameters->work_list)[index];
 		if (task->has_been_processed)
 			index++;
 		else
@@ -182,8 +202,8 @@ void thread_work(k_tree::allocator *memory, k_tree::k_tree *tree, std::vector<jo
 			uint8_t expected = false;
 			if (task->has_been_processed.compare_exchange_strong(expected, true))
 				{
-std::cout << index << "\n";
-				tree->push_back(memory, task->vector);
+//std::cout << index << "\n";
+				parameters->tree->push_back(&parameters->memory, task->vector);
 				}
 			index++;
 			}
@@ -195,7 +215,7 @@ std::cout << index << "\n";
 	-------
 	Build the k-tree from the input data
 */
-int build(char *infilename, size_t tree_order, char *outfilename)
+int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_count)
 	{
 	k_tree::allocator memory;
 	std::vector<job> vector_list;
@@ -273,17 +293,18 @@ int build(char *infilename, size_t tree_order, char *outfilename)
 		Add them to the tree
 		Start a bunch of threads to each do some of the work
 	*/
-size_t thread_count = 10;
-	std::vector<std::thread> thread_pool;
+	std::unordered_map<std::thread *, worker *> thread_pool;
 	for (size_t which = 0; which < thread_count ; which++)
-		thread_pool.push_back(std::thread(thread_work, new k_tree::allocator(), &tree, &vector_list));
-//FIX THIS LEAKS THE ALOCATOR.
+		{
+		worker *work = new worker(&tree, &vector_list);
+		thread_pool[new std::thread(thread_work, work)] = work;
+		}
 
 	/*
 		Wait until all the threads have finished
 	*/
-	for (auto &thread : thread_pool)
-		thread.join();
+	for (auto &[thread, work] : thread_pool)
+		thread->join();
 
 	/*
 		Fix the leaf count value
@@ -296,6 +317,15 @@ size_t thread_count = 10;
 	std::ofstream outfile(outfilename);
 	outfile << tree;
 	outfile.close();
+
+	/*
+		Clean up
+	*/
+	for (auto &[thread, work] : thread_pool)
+		{
+		delete thread;
+		delete work;
+		}
 
 	return 0;
 	}
@@ -344,7 +374,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "unittest") == 0)
 		return unittest();
 	else if (strcmp(argv[1], "build") == 0)
-		return build(argv[2], atoi(argv[3]), argv[4]);
+		return build(argv[2], atoi(argv[3]), argv[4], 10);
 	else
 		return usage(argv[0]);
 	}

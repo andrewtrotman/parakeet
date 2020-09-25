@@ -30,7 +30,7 @@ namespace k_tree
 				----------------------
 				Constructor
 			*/
-			allocator(size_t block_size = 1'073'741'824 /* 1GB */, bool use_global_malloc = true) :
+			allocator(size_t block_size = 1'073'741'824 /* 1GB */, bool use_global_malloc = false) :
 				chunk(nullptr),
 				size(block_size),
 				used(block_size),

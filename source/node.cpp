@@ -95,17 +95,7 @@ namespace k_tree
 	size_t node::number_of_children(void) const
 		{
 		size_t child_count = children;				// since this can change while this method is running is another thread updates the count
-		child_count = std::min(child_count, max_children);
-		/*
-			There is a set of potential race conditions here that we need to take care of:
-			Children might have been updated, but any one (or more) of the child[] might still be nullptr because it has not been
-			written to yet.  So we adjust the count to stop at the first nullptr in the array
-		*/
-		for (size_t true_count = 0; true_count < child_count; true_count++)
-			if (child[true_count] == nullptr)
-				return true_count;
-
-		return child_count;
+		return std::min(child_count, max_children);
 		}
 
 	/*
@@ -128,11 +118,17 @@ namespace k_tree
 		*/
 		for (size_t which = 1; which < child_count; which++)
 			{
-			float distance = what->distance_squared(child[which].load()->centroid);
-			if (distance < min_distance)
+			/*
+				Make sure child[which] has been written to (because children might be updated but child[which] has not yet been updated
+			*/
+			if (child[which].load() != nullptr)
 				{
-				min_distance = distance;
-				closest_child = which;
+				float distance = what->distance_squared(child[which].load()->centroid);
+				if (distance < min_distance)
+					{
+					min_distance = distance;
+					closest_child = which;
+					}
 				}
 			}
 
@@ -155,8 +151,11 @@ namespace k_tree
 		for (size_t which = 0; which < child_count; which++)
 			{
 			auto current_child = child[which].load();
-			new_leaf_count += current_child->leaves_below_this_point;
-			centroid->fused_multiply_add(*current_child->centroid, current_child->leaves_below_this_point);
+			if (current_child != nullptr)					// Make sure child[which] has been written to (because children might be updated but child[which] has not yet been updated
+				{
+				new_leaf_count += current_child->leaves_below_this_point;
+				centroid->fused_multiply_add(*current_child->centroid, current_child->leaves_below_this_point);
+				}
 			}
 
 		leaves_below_this_point = new_leaf_count;
@@ -181,7 +180,7 @@ namespace k_tree
 		float new_sum_distance = old_sum_distance / 2;
 
 		/*
-			allocate space
+			Allocate space
 		*/
 		object *centroid_1 = centroid->new_object(memory);
 		object *centroid_2 = centroid->new_object(memory);
@@ -263,7 +262,7 @@ namespace k_tree
 				}
 
 			/*
-				Rebuild then centroids: then average
+				Rebuild the centroids: then average
 			*/
 			*centroid_1 /= first_cluster_size;
 			*centroid_2 /= second_cluster_size;
@@ -284,7 +283,7 @@ namespace k_tree
 				child_2->children++;
 				}
 
-		return first_cluster_size != 0 && second_cluster_size != 0;
+		return first_cluster_size != 0 && second_cluster_size != 0;			// return true if we are able to split into two clusters, or false if everyhting ended up in one cluster.
 		}
 
 	/*
@@ -297,15 +296,25 @@ namespace k_tree
 	*/
 	bool node::split(allocator *memory, node **child_1_out, node **child_2_out) const
 		{
-		bool did_split = split(memory, child_1_out, child_2_out, 0);
-		if (!did_split)
+		/*
+			Before we do a split we need to make sure all other processes that are writing to the child[] array of this node have completed.  This can happen
+			because childen is incremented by two threads, and the second tried to do the split before the first updates the pointer in the child[] array.  To
+			catch this we spin until the array is full (i.e. contains no nullptr values)
+		*/
+		for (auto p = child; p < child + max_children; p++)
+			while (*p == nullptr)
+				{
+				/* Spinlock as we wait for all the threads to finish writing into child[] */
+				}
+
+		if (!split(memory, child_1_out, child_2_out, 0))
 			{
 			/*
 				We failed to split. This might be because the node consists of vectors that are identical, or it might be
 				that the vectors have all been moving while we did the clistering so we ended up with everything in one
-				clister.  Assuming the former, we'll split the clister randomly.  An alternative is to call split()
-				with a different initial starting cluster (i.e. not 0).  Or we chould check to see if we're all the
-				same vector and if so split randomly.
+				cluster.  Assuming the former, we'll split the clister into two equal sized clusters by alternating which
+				cluster we put each child into.  An alternative is to call split() with a different initial starting
+				cluster (i.e. not 0).  Or we chould check to see if we're all the same vector and if so split randomly.
 			*/
 			(*child_1_out)->children = 0;
 			(*child_2_out)->children = 0;
@@ -334,10 +343,10 @@ namespace k_tree
 		{
 		/*
 			We're only alowed to split if the return path hasn't changed.
-			This can be guaranteed if the split count hasn't changed. If it has the we need to undo the slot assignment (atomically) and return re-try.
+			This can be guaranteed if the split count hasn't changed. If it has the we need to re-try.
 			We have the old split count stored in context->split_count and we want to increase the count in the tree the (effectively) take a lock
 			if we're allowed, or fail if we're not allowed so we can use a compare-and-swap, all in the knowledge that since children is now equal to
-			max_children, that all other split attempts failed.  So if compare-and-swap fails then we can undo the slot assignment and force a retry.
+			max_children, that all other split attempts failed.  So if compare-and-swap fails then we force a retry.
 
 			Note that the split_count is counting two things, entry and exit from the split operaiton.  This is because a thread might start a split and then get
 			swapped out.  A second thread enters, gets the split count, notices a split is needed, does the split and exits all while the first thread is
@@ -375,8 +384,6 @@ namespace k_tree
 		*/
 		context->split_count.begin++;
 
-//std::cout << "GRANT:" << lock_times.load() << ":" << std::this_thread::get_id() << "\n";
-
 		return true;
 		}
 
@@ -387,21 +394,8 @@ namespace k_tree
 	*/
 	void node::release_lock(context *context)
 		{
-		auto another = context->split_count;
-		another.end++;
-		if (!context->tree->split_count.compare_exchange_strong(context->split_count, another))
-			{
-/*
-FIX THIS:
-Turn the above line into an assignment rather than a compare_exchange_stong()
-*/
-			puts("SOMETHING WENT WRONG - THE LOCK COUNT IS WRONG!!!!");
-			exit(1);
-			}
-		/*
-			We should update context->split.end, but there is no point as it will never be used again.
-		*/
-//std::cout << "RELEASE:" << std::this_thread::get_id() << "\n";
+		context->split_count.end++;
+		context->tree->split_count.store(context->split_count);
 		}
 
 	/*
@@ -467,22 +461,7 @@ Turn the above line into an assignment rather than a compare_exchange_stong()
 			auto got = node::new_node(context->memory, data);
 			child[my_slot] = got;
 
-			/*
-				Before we do a split we need to make sure all other processes that are writing to the child[] array of this node have completed.  This can happen
-				because childen is incremented by two threads, and the second tried to do the split before the first updates the pointer in the child[] array.  To
-				catch this we spin until the array is full (i.e. contains no nullptr values)
-			*/
-			for (auto p = child; p < child + max_children; p++)
-				while (*p == nullptr)
-					{
-int x = 0;
-					/* Nothing */		// should call node::number_of_children() instead of this
-					}
-
-			bool split_worked;
-			split_worked = split(context->memory, child_1, child_2);
-if (!split_worked)
-int x = 0;
+			split(context->memory, child_1, child_2);
 			(*child_1)->compute_mean();
 			(*child_2)->compute_mean();
 
@@ -518,20 +497,11 @@ int x = 0;
 				*/
 				child[best_child] = *child_1;
 				child[children] = *child_2;
-// flush
-std::atomic_thread_fence(std::memory_order_seq_cst);
 				children++;
-				/*
-					there is a squential consistency barrier here so that we know that child[children] has been updated before
-					children was incremented - so all the pointers are valid.
-				*/
 
 				if (children > max_children)
 					{
-					bool split_worked;
-					split_worked = split(context->memory, child_1, child_2);
-if (!split_worked)
-int x = 0;
+					split(context->memory, child_1, child_2);
 					(*child_1)->compute_mean();
 					(*child_2)->compute_mean();
 					did_split = result_split;
@@ -556,12 +526,11 @@ int x = 0;
 		return did_split;
 		}
 
-
-		/*
-			NODE::NORMALISE_COUNTS()
-			------------------------
-			Fix the broken leaved-below counts that happened because of parallel updates
-		*/
+	/*
+		NODE::NORMALISE_COUNTS()
+		------------------------
+		Fix the broken leaved-below counts that happened because of parallel updates
+	*/
 	void node::normalise_counts(void)
 		{
 		/*
@@ -583,7 +552,6 @@ int x = 0;
 				leaves_below_this_point += child[who].load()->leaves_below_this_point;
 			}
 		}
-
 
 	/*
 		NODE::TEXT_RENDER()

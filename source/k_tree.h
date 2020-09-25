@@ -21,13 +21,14 @@ namespace k_tree
 		CLASS K_TREE
 		------------
 		K-tree.  See:
-			S. Geva (2000) K-tree: a height balanced tree structured vector quantizer, Neural Networks for Signal Processing X. Proceedings of the 2000 IEEE Signal Processing Society Workshop, pp. 271-280, doi: 10.1109/NNSP.2000.889418.
+			S. Geva (2000) K-tree: a height balanced tree structured vector quantizer, Neural Networks for Signal Processing X.
+			Proceedings of the 2000 IEEE Signal Processing Society Workshop, pp. 271-280, doi: 10.1109/NNSP.2000.889418.
 		This is a b-tree of vectors where each node stored a k-means clustering of the nodes beneath it.
 	*/
 	class k_tree
 		{
 		public:
-			std::atomic<node::context::in_out_count> split_count;		// the number of splits we've seen (counts starts an finishes of the split)
+			std::atomic<node::context::in_out_count> split_count;		// the number of splits we've seen (counts starts and finishes of the split)
 
 			node *parameters;				// the sole purpose of parameters is to store the order (branchine factor) of the tree and the width of the vectors it holds.
 			std::atomic<node *>root;	// the root of the k-tree (must be std::atomic<> because it is written to and read from multiple threads without a barrier).
