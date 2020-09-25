@@ -315,7 +315,7 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 		Dump the tree to the output file
 	*/
 	std::ofstream outfile(outfilename);
-	outfile << tree;
+	tree.text_render_penultimate(outfile);
 	outfile.close();
 
 	/*

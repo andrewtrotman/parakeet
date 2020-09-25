@@ -558,13 +558,36 @@ namespace k_tree
 		-------------------
 		Serialise the object in a human-readable format and down the given stream
 	*/
-	void node::text_render(std::ostream &stream) const
+	std::ostream &node::text_render(std::ostream &stream) const
 		{
-		stream << children << ' ' << leaves_below_this_point << ' ' << *centroid << "\n";
+		stream << (children.load() < max_children ? children.load() : max_children) << ' ' << leaves_below_this_point << ' ' << *centroid << "\n";
 
 		size_t child_count = children.load() < max_children ? children.load() : max_children;
 		for (size_t who = 0; who < child_count; who++)
 			child[who].load()->text_render(stream);
+
+		return stream;
 		}
+
+	/*
+		NODE::TEXT_RENDER_PENULTIMATE()
+		-------------------------------
+		Dump the level above the leaves (the bottom-level clusters)
+	*/
+	std::ostream &node::text_render_penultimate(std::ostream &stream) const
+		{
+		if (children != 0)
+			{
+			if (child[0].load()->isleaf())
+				stream << (children.load() < max_children ? children.load() : max_children) << ' ' << leaves_below_this_point << ' ' << *centroid << "\n";
+
+			size_t child_count = children.load() < max_children ? children.load() : max_children;
+			for (size_t who = 0; who < child_count; who++)
+				child[who].load()->text_render_penultimate(stream);
+			}
+
+		return stream;
+		}
+
 	}
 
