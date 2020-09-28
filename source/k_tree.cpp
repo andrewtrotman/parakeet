@@ -14,7 +14,7 @@ namespace k_tree
 		Constructor
 	*/
 
-	k_tree::k_tree(allocator *memory, size_t tree_order, size_t vector_order) :
+	k_tree::k_tree(allocator *memory, size_t tree_order, size_t vector_order) noexcept :
 		split_count(),
 		parameters(nullptr),
 		root(nullptr)

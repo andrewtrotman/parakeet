@@ -71,7 +71,7 @@ namespace k_tree
 								NODE::CONTEXT::IN_OUT_COUNT::IN_OUT_COUNT()
 								-------------------------------------------
 							*/
-							in_out_count() :
+							in_out_count() noexcept :
 								begin(0),
 								end(0)
 								{
@@ -86,7 +86,7 @@ namespace k_tree
 					in_out_count split_count;	// the number of splits the tree has undergone (used to see if the return path might have changed, and therefore a split cannot happen)
 
 				public:
-					context(k_tree *tree, allocator *memory, in_out_count split_count) :
+					context(k_tree *tree, allocator *memory, in_out_count split_count) noexcept :
 						tree(tree),
 						memory(memory),
 						split_count(split_count)
@@ -111,7 +111,7 @@ namespace k_tree
 				NODE::NODE()
 				------------
 			*/
-			node();
+			node() noexcept;
 
 			/*
 				NODE::TAKE_LOCK()

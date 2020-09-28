@@ -19,7 +19,7 @@ namespace k_tree
 		NODE::NODE()
 		------------
 	*/
-	node::node() :
+	node::node() noexcept :
 		state(state_unsplit),
 		max_children(0),
 		children(0),

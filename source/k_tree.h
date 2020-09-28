@@ -47,7 +47,7 @@ namespace k_tree
 				----------------
 				Constructor
 			*/
-			k_tree(allocator *memory, size_t tree_order, size_t vector_order);
+			k_tree(allocator *memory, size_t tree_order, size_t vector_order) noexcept;
 
 			/*
 				K_TREE::PUSH_BACK()
