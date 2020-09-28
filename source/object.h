@@ -152,14 +152,22 @@ namespace k_tree
 			float distance_squared(const object *b)
 				{
 				float total = 0;
+				#ifdef __AVX512F__
+					for (size_t dimension = 0; dimension < dimensions; dimension += 16)
+						{
+						__m512 diff = _mm512_sub_ps(_mm512_loadu_ps(vector + dimension), _mm512_loadu_ps(b->vector + dimension));
+						__m512 result = _mm512_mul_ps(diff, diff);
+						total += _mm512_reduce_add_ps(result);
+						}
+				#else
+					for (size_t dimension = 0; dimension < dimensions; dimension += 8)
+						{
+						__m256 diff = _mm256_sub_ps(_mm256_loadu_ps(vector + dimension), _mm256_loadu_ps(b->vector + dimension));
+						__m256 result = _mm256_mul_ps(diff, diff);
+						total += horizontal_sum(result);
+						}
 
-				for (size_t dimension = 0; dimension < dimensions; dimension += 8)
-					{
-					__m256 diff = _mm256_sub_ps(_mm256_loadu_ps(vector + dimension), _mm256_loadu_ps(b->vector + dimension));
-					__m256 result = _mm256_mul_ps(diff, diff);
-					total += horizontal_sum(result);
-					}
-
+				#endif
 				return total;
 				}
 
@@ -204,8 +212,13 @@ namespace k_tree
 			*/
 			void operator+=(const object &operand)
 				{
-				for (size_t dimension = 0; dimension < dimensions; dimension += 8)
-					_mm256_storeu_ps(vector + dimension, _mm256_add_ps(_mm256_loadu_ps(vector + dimension), _mm256_loadu_ps(operand.vector + dimension)));
+				#ifdef __AVX512F__
+					for (size_t dimension = 0; dimension < dimensions; dimension += 16)
+						_mm512_storeu_ps(vector + dimension, _mm512_add_ps(_mm512_loadu_ps(vector + dimension), _mm512_loadu_ps(operand.vector + dimension)));
+				#else
+					for (size_t dimension = 0; dimension < dimensions; dimension += 8)
+						_mm256_storeu_ps(vector + dimension, _mm256_add_ps(_mm256_loadu_ps(vector + dimension), _mm256_loadu_ps(operand.vector + dimension)));
+				#endif
 				}
 
 			/*
@@ -215,10 +228,17 @@ namespace k_tree
 			*/
 			void operator/=(float constant)
 				{
-				__m256 divisor = _mm256_set1_ps(constant);
+				#ifdef __AVX512F__
+					__m512 divisor = _mm512_set1_ps(constant);
 
-				for (size_t dimension = 0; dimension < dimensions; dimension += 8)
-					_mm256_storeu_ps(vector + dimension, _mm256_div_ps(_mm256_loadu_ps(vector + dimension), divisor));
+					for (size_t dimension = 0; dimension < dimensions; dimension += 16)
+						_mm512_storeu_ps(vector + dimension, _mm512_div_ps(_mm512_loadu_ps(vector + dimension), divisor));
+				#else
+					__m256 divisor = _mm256_set1_ps(constant);
+
+					for (size_t dimension = 0; dimension < dimensions; dimension += 8)
+						_mm256_storeu_ps(vector + dimension, _mm256_div_ps(_mm256_loadu_ps(vector + dimension), divisor));
+				#endif
 				}
 
 			/*
@@ -228,9 +248,15 @@ namespace k_tree
 			*/
 			void fused_multiply_add(object &operand, float constant)
 				{
-				__m256 factor = _mm256_set1_ps(constant);
-				for (size_t dimension = 0; dimension < dimensions; dimension += 8)
-					_mm256_storeu_ps(vector + dimension, _mm256_fmadd_ps(_mm256_loadu_ps(operand.vector + dimension), factor, _mm256_loadu_ps(vector + dimension)));
+				#ifdef __AVX512F__
+					__m512 factor = _mm512_set1_ps(constant);
+					for (size_t dimension = 0; dimension < dimensions; dimension += 16)
+						_mm512_storeu_ps(vector + dimension, _mm512_fmadd_ps(_mm512_loadu_ps(operand.vector + dimension), factor, _mm512_loadu_ps(vector + dimension)));
+				#else
+					__m256 factor = _mm256_set1_ps(constant);
+					for (size_t dimension = 0; dimension < dimensions; dimension += 8)
+						_mm256_storeu_ps(vector + dimension, _mm256_fmadd_ps(_mm256_loadu_ps(operand.vector + dimension), factor, _mm256_loadu_ps(vector + dimension)));
+				#endif
 				}
 
 			/*
@@ -240,6 +266,11 @@ namespace k_tree
 			*/
 			static void unittest(void)
 				{
+				#ifdef __AVX512F__
+					std::cout << "Using AVX-512\n";
+				#else
+					std::cout << "Using AVX2\n";
+				#endif
 				object initial(8);
 				allocator memory;
 
