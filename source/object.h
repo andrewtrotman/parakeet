@@ -128,7 +128,7 @@ namespace k_tree
 					permute to get: 0000 0000 0000 0000 EFGH EFGH EFGH EFGH
 				*/
 				__m256 missing = _mm256_castsi256_ps(_mm256_shuffle_epi32(_mm256_castps_si256(elements), _MM_SHUFFLE(0, 0, 0, 0)));
-				missing = _mm256_castsi256_ps(_mm256_permute2x128_si256(_mm256_setzero_si256(), missing, 3));
+				missing = _mm256_castsi256_ps(_mm256_permute2x128_si256(_mm256_setzero_si256(), _mm256_castps_si256(missing), 3));
 
 				/*
 					add

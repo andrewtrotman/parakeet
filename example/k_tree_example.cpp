@@ -304,7 +304,10 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 		Wait until all the threads have finished
 	*/
 	for (auto &[thread, work] : thread_pool)
+		{
+		(void)work;					// remove the warning
 		thread->join();
+		}
 
 	/*
 		Fix the leaf count value
