@@ -589,5 +589,29 @@ namespace k_tree
 		return stream;
 		}
 
-	}
+	/*
+		NODE::TEXT_RENDER_MOVIE()
+		-------------------------
+		Serialise the object in a human-readable format and down the given stream.  The first character is a symbol representing the depth of the tree, then the coordinate
+	*/
+	std::ostream &node::text_render_movie(std::ostream &stream, uint32_t depth) const
+		{
+		static const char *symbols = "+x*o^dsphv><";
+		static uint32_t last_symbol = sizeof(symbols);
 
+		if (isleaf())
+			stream << '.';
+		else if (depth < last_symbol)
+			stream << symbols[depth];
+		else
+			stream << symbols[last_symbol];
+
+		stream << ' ' << *centroid << "\n";
+
+		size_t child_count = children.load() < max_children ? children.load() : max_children;
+		for (size_t who = 0; who < child_count; who++)
+			child[who].load()->text_render_movie(stream, depth + 1);
+
+		return stream;
+		}
+	}

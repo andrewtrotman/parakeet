@@ -80,6 +80,13 @@ namespace k_tree
 			std::ostream &text_render(std::ostream &stream) const;
 
 			/*
+				K_TREE::TEXT_RENDER_MOVIE()
+				---------------------------
+				Serialsise a human-readable version of tree to the stream
+			*/
+			std::ostream &text_render_movie(std::ostream &stream) const;
+
+			/*
 				K_TREE::TEXT_RENDER_PENULTIMATE()
 				---------------------------------
 				Dump the level above the leaves (the bottom-level clusters)

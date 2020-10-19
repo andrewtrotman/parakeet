@@ -11,6 +11,7 @@
 #include <atomic>
 #include <thread>
 #include <fstream>
+#include <sstream>
 #include <iostream>
 #include <unordered_map>
 
@@ -69,10 +70,15 @@ class worker
 		k_tree::allocator memory;
 		k_tree::k_tree *tree;
 		std::vector<job> *work_list;
+		bool movie_mode;
+		const char *outfilename;
+
 	public:
-		worker(k_tree::k_tree *tree, std::vector<job> *work_list) :
+		worker(k_tree::k_tree *tree, std::vector<job> *work_list, bool movie_mode, const char *outfilename) :
 			tree(tree),
-			work_list(work_list)
+			work_list(work_list),
+			movie_mode(movie_mode),
+			outfilename(outfilename)
 			{
 			/* Nothing */
 			}
@@ -204,6 +210,18 @@ void thread_work(worker *parameters)
 				{
 //std::cout << index << "\n";
 				parameters->tree->push_back(&parameters->memory, task->vector);
+				/*
+					If we're in movie mode the dump the tree in a format we can read in GNU Octave
+				*/
+				if (parameters->movie_mode)
+					{
+					std::ostringstream filename;
+					filename << "movie." << index << ".txt";
+
+					std::ofstream outfile(filename.str().c_str());
+					parameters->tree->text_render_movie(outfile);
+					outfile.close();
+					}
 				}
 			index++;
 			}
@@ -215,7 +233,7 @@ void thread_work(worker *parameters)
 	-------
 	Build the k-tree from the input data
 */
-int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_count)
+int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_count, bool movie_mode)
 	{
 	k_tree::allocator memory;
 	std::vector<job> vector_list;
@@ -296,7 +314,7 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 	std::unordered_map<std::thread *, worker *> thread_pool;
 	for (size_t which = 0; which < thread_count ; which++)
 		{
-		worker *work = new worker(&tree, &vector_list);
+		worker *work = new worker(&tree, &vector_list, movie_mode, outfilename);
 		thread_pool[new std::thread(thread_work, work)] = work;
 		}
 
@@ -359,7 +377,9 @@ int unittest(void)
 */
 int usage(char *exename)
 	{
-	std::cout << "Usage:" << exename << " <[build | unittest]> <in_file> <tree_order> <outfile>\n";
+	std::cout << "Usage:" << exename << " build  <in_file> <tree_order> <outfile>\n";
+	std::cout << "      " << exename << " unittest\n";
+	std::cout << "      " << exename << " movie  <in_file> <tree_order> <outfile>\n";
 	return 0;
 	}
 
@@ -377,7 +397,9 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "unittest") == 0)
 		return unittest();
 	else if (strcmp(argv[1], "build") == 0)
-		return build(argv[2], atoi(argv[3]), argv[4], 10);
+		return build(argv[2], atoi(argv[3]), argv[4], 10, false);
+	else if (strcmp(argv[1], "movie") == 0)
+		return build(argv[2], atoi(argv[3]), argv[4], 1, true);
 	else
 		return usage(argv[0]);
 	}

@@ -222,6 +222,13 @@ namespace k_tree
 			std::ostream &text_render(std::ostream &stream) const;
 
 			/*
+				NODE::TEXT_RENDER_MOVIE()
+				-------------------------
+				Serialise the object in a human-readable format and down the given stream
+			*/
+			std::ostream &text_render_movie(std::ostream &stream, uint32_t depth = 0) const;
+
+			/*
 				NODE::TEXT_RENDER_PENULTIMATE()
 				-------------------------------
 				Dump the level above the leaves (the bottom-level clusters)
