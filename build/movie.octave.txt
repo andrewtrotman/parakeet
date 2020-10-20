@@ -1,9 +1,8 @@
-frame = 0;
+frame = str2num(argv{1});
 while (frame < 10000)
 	dx=[]; dy=[]; px=[]; py=[]; xx=[]; xy=[];
 	sx=[]; sy=[]; ox=[]; oy=[]; hx=[]; hy=[];
 	ddx=[]; ddy=[];
-
 
 	filename=["movie.", num2str(frame), ".txt"]
 	fp = fopen(filename, "r");
@@ -36,16 +35,15 @@ while (frame < 10000)
 	
 	fclose(fp);
 	
-	fig = figure();
+	fig = figure("visible", "off");
 	plot(
 			dx,dy,".","markersize", 5, "LineWidth", 1,
-			ox,oy,"o","markersize", 5, "LineWidth", 1,
-			px,py,"+","markersize", 5, "LineWidth", 1,
-			xx,xy,"x","markersize", 5, "LineWidth", 1,
-			sx,sy,"*","markersize", 5, "LineWidth", 1,
-			ox,oy,"o","markersize", 5, "LineWidth", 1,
+			ddx,ddy,"d","markersize", 5, "LineWidth", 1,
 			hx,hy,"^","markersize", 5, "LineWidth", 1,
-			ddx,ddy,"d","markersize", 5, "LineWidth", 1
+			ox,oy,"o","markersize", 5, "LineWidth", 1,
+			sx,sy,"*","markersize", 5, "LineWidth", 1,
+			xx,xy,"x","markersize", 5, "LineWidth", 1,
+			px,py,"+","markersize", 5, "LineWidth", 1
 			);
 	axis([-15, 10, -3, 18]);
 	print(fig, num2str(frame), "-dpng");
