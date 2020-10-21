@@ -1,4 +1,4 @@
-frame = str2num(argv{1});
+frame = str2num(argv(){1});
 while (frame < 10000)
 	dx=[]; dy=[]; px=[]; py=[]; xx=[]; xy=[];
 	sx=[]; sy=[]; ox=[]; oy=[]; hx=[]; hy=[];
