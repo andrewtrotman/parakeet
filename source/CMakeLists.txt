@@ -4,6 +4,7 @@
 #
 set(SOURCE
 	allocator.h
+	fast_double_parser.h
 	k_tree.h
 	k_tree.cpp
 	node.h

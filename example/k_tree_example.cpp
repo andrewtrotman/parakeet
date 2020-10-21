@@ -16,6 +16,7 @@
 #include <unordered_map>
 
 #include "k_tree.h"
+#include "fast_double_parser.h"
 
 /*
 	CLASS JOB
@@ -69,12 +70,12 @@ class worker
 	public:
 		k_tree::allocator memory;
 		k_tree::k_tree *tree;
-		std::vector<job> *work_list;
+		std::vector<job*> *work_list;
 		bool movie_mode;
 		const char *outfilename;
 
 	public:
-		worker(k_tree::k_tree *tree, std::vector<job> *work_list, bool movie_mode, const char *outfilename) :
+		worker(k_tree::k_tree *tree, std::vector<job*> *work_list, bool movie_mode, const char *outfilename) :
 			tree(tree),
 			work_list(work_list),
 			movie_mode(movie_mode),
@@ -200,7 +201,7 @@ void thread_work(worker *parameters)
 
 	while (index < end)
 		{
-		job *task = &(*parameters->work_list)[index];
+		job *task = (*parameters->work_list)[index];
 		if (task->has_been_processed)
 			index++;
 		else
@@ -229,6 +230,44 @@ void thread_work(worker *parameters)
 	}
 
 /*
+	THREAD_ASCII_TO_FLOAT()
+	-----------------------
+*/
+void thread_ascii_to_float(std::vector<uint8_t *> &lines, std::vector<job *> &vector_list, k_tree::object &example_vector, k_tree::allocator &memory, size_t start, size_t stop)
+	{
+	for (size_t current_line = start; current_line < stop; current_line++)
+		{
+		const auto *line = lines[current_line];
+
+		size_t dimension = 0;
+		k_tree::object *objectionable = example_vector.new_object(&memory);
+		char *pos = (char *)line;
+
+		do
+			{
+			while (isspace(*pos))
+				pos++;
+			if (*pos == '\0')
+				break;
+			double value_as_double;
+			float value;
+			bool isok = fast_double_parser::parse_number(pos, &value_as_double);
+			if (isok)
+				value = (float)value_as_double;
+			else
+				value = atof(pos);
+			while (*pos != '\0' && !isspace(*pos))
+				pos++;
+			objectionable->vector[dimension] = value;
+			dimension++;
+			}
+		while (*pos != '\0');
+
+		vector_list[current_line] = new (memory.malloc(sizeof(job))) job(objectionable);
+		}
+	}
+
+/*
 	BUILD()
 	-------
 	Build the k-tree from the input data
@@ -236,7 +275,7 @@ void thread_work(worker *parameters)
 int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_count, bool movie_mode)
 	{
 	k_tree::allocator memory;
-	std::vector<job> vector_list;
+	std::vector<job *> vector_list;
 
 	/*
 		Check the tree order is "reasonable"
@@ -282,6 +321,32 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 	k_tree::object *example_vector = tree.get_example_object();
 
 	/*
+		Convert from ASCII to floats in parallel
+	*/
+	std::vector<std::thread>thread_pool_deascii;
+	vector_list.resize(lines.size());		// create space for each completed pointer
+	size_t gap = lines.size() / thread_count;
+	for (size_t which = 0; which < thread_count ; which++)
+		{
+		/*
+			If were the last "block" then make sure we get to the end (we assume lines.size() is not evenly dividible by the thread count)
+		*/
+		k_tree::allocator *local_allocator = new k_tree::allocator;
+		if (which == thread_count - 1)
+			thread_pool_deascii.push_back(std::thread(thread_ascii_to_float, std::ref(lines), std::ref(vector_list), std::ref(example_vector), std::ref(*local_allocator), gap * which, lines.size()));
+		else
+			thread_pool_deascii.push_back(std::thread(thread_ascii_to_float, std::ref(lines), std::ref(vector_list), std::ref(example_vector), std::ref(*local_allocator), gap * which, gap * which + gap));
+		}
+
+	/*
+		Wait until all the threads have finished
+	*/
+	for (auto &completed : thread_pool_deascii)
+		completed.join();
+
+
+
+	/*
 		Convert each line into a vector and add it to a list (so that we can add them later)
 	*/
 	for (const auto line : lines)
@@ -296,7 +361,13 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 				pos++;
 			if (*pos == '\0')
 				break;
-			float value = atof(pos);
+			double value_as_double;
+			float value;
+			bool isok = fast_double_parser::parse_number(pos, &value_as_double);
+			if (isok)
+				value = (float)value_as_double;
+			else
+				value = atof(pos);
 			while (*pos != '\0' && !isspace(*pos))
 				pos++;
 			objectionable->vector[dimension] = value;
@@ -304,7 +375,7 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 			}
 		while (*pos != '\0');
 
-		vector_list.push_back(job(objectionable));
+		vector_list.push_back(new job(objectionable));
 		}
 
 	/*
