@@ -465,6 +465,13 @@ int load(char *infilename, size_t tree_order, char *outfilename)
 	std::istringstream instream(file);
 	tree.deserialise(memory, instream, *tree.get_example_object());
 
+	/*
+		Serialise the tree again
+	*/
+	std::ofstream outfile(outfilename);
+	outfile << tree;
+	outfile.close();
+
 	return 0;
 	}
 

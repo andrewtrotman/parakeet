@@ -557,34 +557,44 @@ namespace k_tree
 		NODE::DESERIALISE()
 		-------------------
 	*/
-	void node::deserialise(allocator &memory, std::istream &stream, object &example_object)
+	node *node::deserialise(allocator &memory, std::istream &stream, object &example_object)
 		{
-		size_t value;
+		size_t new_children;
+		size_t new_leaves_below_this_point;
 
-		stream >> value;
-		leaves_below_this_point = value;
+		/*
+			Get the number of children and the number of leaves below this point
+		*/
+		stream >> new_children;
+		stream >> new_leaves_below_this_point;
 
-		stream >> value;
-		children = value;
+		/*
+			If we're a leaf node (we have no children) then create a leaf and return it
+		*/
+		if (new_children == 0)
+			{
+			object *new_vector = example_object.new_object(&memory);
+			for (size_t dimension = 0; dimension < example_object.dimensions; dimension++)
+				stream >> new_vector->vector[dimension];
+			node * answer = new_node(&memory, new_vector);
 
+			return answer;
+			}
+
+		node *answer = new_node(&memory, (node *)nullptr);
+		answer->children = new_children;
+		answer->leaves_below_this_point = new_leaves_below_this_point;
+
+		/*
+			Else, we're a internal node
+		*/
 		for (size_t dimension = 0; dimension < example_object.dimensions; dimension++)
-			{
-			float value;
+			stream >> answer->centroid->vector[dimension];
 
-			stream >> value;
-			centroid->vector[dimension] = value;
-			}
+		for (size_t which_child = 0; which_child < new_children; which_child++)
+			answer->child[which_child] = deserialise(memory, stream, example_object);
 
-		for (size_t which_child = 0; which_child < children; which_child++)
-			{
-			if (children == 0)
-				child[which_child] = new_node(&memory, example_object.new_object(&memory));
-			else
-				{
-				child[which_child] = new_node(&memory, (node *)nullptr);
-				child[which_child].load()->deserialise(memory, stream, example_object);
-				}
-			}
+		return answer;
 		}
 
 	/*

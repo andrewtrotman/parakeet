@@ -137,9 +137,11 @@ namespace k_tree
 	*/
 	void k_tree::deserialise(allocator &memory, std::istream &stream, object &example_object)
 		{
-		node *leaf = parameters->new_node(&memory, (node *)nullptr);
-		root = parameters->new_node(&memory, leaf);
-		root.load()->deserialise(memory, stream, example_object);
+		/*
+			Create a fake root and then use that to deserialse the tree
+		*/
+		node *fake_root = parameters->new_node(&memory, parameters->new_node(&memory,&example_object));
+		root = fake_root->deserialise(memory, stream, example_object);
 		}
 
 	/*

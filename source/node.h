@@ -219,7 +219,7 @@ namespace k_tree
 				-------------------
 				Deserialise a previously serialised k-tree.  Serialised using cout << ktree;
 			*/
-			void deserialise(allocator &memory, std::istream &stream, object &example_object);
+			node *deserialise(allocator &memory, std::istream &stream, object &example_object);
 
 			/*
 				NODE::TEXT_RENDER()
