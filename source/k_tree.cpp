@@ -50,7 +50,7 @@ namespace k_tree
 
 			node *leaf = parameters->new_node(memory, data);
 			node *new_root = parameters->new_node(memory, leaf);
-			new_root->compute_mean();
+			new_root->compute_mean();		// as this is the first add this is, essentially, a copy
 
 			/*
 				Force the writes to happen then update root
@@ -75,7 +75,7 @@ namespace k_tree
 			node *new_root = parameters->new_node(memory, child_1);
 			new_root->child[1] = child_2;
 			new_root->children = 2;
-			new_root->compute_mean();
+			new_root->compute_mean();			// as we just split, this is the mean of only two vectors
 
 			/*
 				Force the writes to happen then update root

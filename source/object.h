@@ -260,6 +260,26 @@ namespace k_tree
 				}
 
 			/*
+				OBJECT::FUSED_SUBTRACT_DIVIDE()
+				-------------------------------
+				this += (operand - this) / constant
+			*/
+			void fused_subtract_divide(object &operand, float constant)
+				{
+				#ifdef __AVX512F__
+					static_assert(false, "fused_subtract_divide() for AVX512 is not implemented yet");
+				#else
+					__m256 factor = _mm256_set1_ps(constant);
+					for (size_t dimension = 0; dimension < dimensions; dimension += 8)
+						{
+						__m256 me = _mm256_loadu_ps(vector + dimension);
+						__m256 answer = _mm256_add_ps(me, _mm256_div_ps(_mm256_sub_ps(_mm256_loadu_ps(operand.vector + dimension), me), factor));
+						_mm256_storeu_ps(vector + dimension, answer);
+						}
+				#endif
+				}
+
+			/*
 				OBJECT::UNITTEST()
 				------------------
 				Unit test this class

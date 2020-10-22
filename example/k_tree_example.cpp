@@ -209,7 +209,6 @@ void thread_work(worker *parameters)
 			uint8_t expected = false;
 			if (task->has_been_processed.compare_exchange_strong(expected, true))
 				{
-//std::cout << index << "\n";
 				parameters->tree->push_back(&parameters->memory, task->vector);
 				/*
 					If we're in movie mode the dump the tree in a format we can read in GNU Octave
@@ -343,38 +342,6 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 	*/
 	for (auto &completed : thread_pool_deascii)
 		completed.join();
-
-	/*
-		Convert each line into a vector and add it to a list (so that we can add them later)
-	*/
-	for (const auto line : lines)
-		{
-		size_t dimension = 0;
-		k_tree::object *objectionable = example_vector->new_object(&memory);
-		pos = (char *)line;
-
-		do
-			{
-			while (isspace(*pos))
-				pos++;
-			if (*pos == '\0')
-				break;
-			double value_as_double;
-			float value;
-			bool isok = fast_double_parser::parse_number(pos, &value_as_double);
-			if (isok)
-				value = (float)value_as_double;
-			else
-				value = atof(pos);
-			while (*pos != '\0' && !isspace(*pos))
-				pos++;
-			objectionable->vector[dimension] = value;
-			dimension++;
-			}
-		while (*pos != '\0');
-
-		vector_list.push_back(new job(objectionable));
-		}
 
 	/*
 		Add them to the tree
@@ -522,7 +489,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "unittest") == 0)
 		return unittest();
 	else if (strcmp(argv[1], "build") == 0)
-		return build(argv[2], atoi(argv[3]), argv[4], 10, false);
+		return build(argv[2], atoi(argv[3]), argv[4], 1, false);
 	else if (strcmp(argv[1], "load") == 0)
 		return load(argv[2], atoi(argv[3]), argv[4]);
 	else if (strcmp(argv[1], "movie") == 0)
