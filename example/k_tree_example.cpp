@@ -333,9 +333,9 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 		*/
 		k_tree::allocator *local_allocator = new k_tree::allocator;
 		if (which == thread_count - 1)
-			thread_pool_deascii.push_back(std::thread(thread_ascii_to_float, std::ref(lines), std::ref(vector_list), std::ref(example_vector), std::ref(*local_allocator), gap * which, lines.size()));
+			thread_pool_deascii.push_back(std::thread(thread_ascii_to_float, std::ref(lines), std::ref(vector_list), std::ref(*example_vector), std::ref(*local_allocator), gap * which, lines.size()));
 		else
-			thread_pool_deascii.push_back(std::thread(thread_ascii_to_float, std::ref(lines), std::ref(vector_list), std::ref(example_vector), std::ref(*local_allocator), gap * which, gap * which + gap));
+			thread_pool_deascii.push_back(std::thread(thread_ascii_to_float, std::ref(lines), std::ref(vector_list), std::ref(*example_vector), std::ref(*local_allocator), gap * which, gap * which + gap));
 		}
 
 	/*
@@ -343,8 +343,6 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 	*/
 	for (auto &completed : thread_pool_deascii)
 		completed.join();
-
-
 
 	/*
 		Convert each line into a vector and add it to a list (so that we can add them later)
@@ -407,7 +405,10 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 		Dump the tree to the output file
 	*/
 	std::ofstream outfile(outfilename);
-	tree.text_render_penultimate(outfile);
+//	tree.text_render_penultimate(outfile);
+//	outfile << tree;
+	tree.text_render_movie(outfile);
+
 	outfile.close();
 
 	/*
@@ -449,8 +450,9 @@ int unittest(void)
 int usage(char *exename)
 	{
 	std::cout << "Usage:" << exename << " build  <in_file> <tree_order> <outfile>\n";
-	std::cout << "      " << exename << " unittest\n";
+	std::cout << "Usage:" << exename << " load  <in_file> <tree_order> <outfile>\n";
 	std::cout << "      " << exename << " movie  <in_file> <tree_order> <outfile>\n";
+	std::cout << "      " << exename << " unittest\n";
 	return 0;
 	}
 
