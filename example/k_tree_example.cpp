@@ -406,9 +406,8 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 	*/
 	std::ofstream outfile(outfilename);
 //	tree.text_render_penultimate(outfile);
-//	outfile << tree;
-	tree.text_render_movie(outfile);
-
+	outfile << tree;
+//	tree.text_render_movie(outfile);
 	outfile.close();
 
 	/*
@@ -419,6 +418,52 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 		delete thread;
 		delete work;
 		}
+
+	return 0;
+	}
+
+/*
+	LOAD()
+	------
+	Load a serialised k-tree, deserialise it, then re-serialise it
+*/
+int load(char *infilename, size_t tree_order, char *outfilename)
+	{
+	/*
+		Read the serialised tree into memory
+	*/
+	std::string file;
+	read_entire_file(infilename, file);
+
+	/*
+		Work out the dimensionality of the vector
+	*/
+	size_t dimensions = 0;
+	char *pos = file.data();
+	do
+		{
+		while (*pos == ' ')
+			pos++;
+		if (*pos == '\0' || *pos == '\r' || *pos == '\n')
+			break;
+		dimensions++;
+		while (*pos != '\0' && *pos != '\r' && *pos != '\n' && *pos != ' ')
+			pos++;
+		}
+	while (*pos != '\0' && *pos != '\n' && *pos != '\r');
+
+	dimensions -= 2;		// subtract the leaf-count and the child-count to get the dimensionality
+	/*
+		Allocate the k-tree
+	*/
+	k_tree::allocator memory;
+	k_tree::k_tree tree(&memory, tree_order, dimensions);
+
+	/*
+		Turn the file into a stream and deserialise it
+	*/
+	std::istringstream instream(file);
+	tree.deserialise(memory, instream, *tree.get_example_object());
 
 	return 0;
 	}
@@ -450,7 +495,7 @@ int unittest(void)
 int usage(char *exename)
 	{
 	std::cout << "Usage:" << exename << " build  <in_file> <tree_order> <outfile>\n";
-	std::cout << "Usage:" << exename << " load  <in_file> <tree_order> <outfile>\n";
+	std::cout << "      " << exename << " load  <in_file> <tree_order> <outfile>\n";
 	std::cout << "      " << exename << " movie  <in_file> <tree_order> <outfile>\n";
 	std::cout << "      " << exename << " unittest\n";
 	return 0;
@@ -471,6 +516,8 @@ int main(int argc, char *argv[])
 		return unittest();
 	else if (strcmp(argv[1], "build") == 0)
 		return build(argv[2], atoi(argv[3]), argv[4], 10, false);
+	else if (strcmp(argv[1], "load") == 0)
+		return load(argv[2], atoi(argv[3]), argv[4]);
 	else if (strcmp(argv[1], "movie") == 0)
 		return build(argv[2], atoi(argv[3]), argv[4], 1, true);
 	else

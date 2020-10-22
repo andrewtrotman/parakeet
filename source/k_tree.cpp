@@ -132,6 +132,17 @@ namespace k_tree
 		}
 
 	/*
+		K_TREE::DESERIALISE()
+		-------------------
+	*/
+	void k_tree::deserialise(allocator &memory, std::istream &stream, object &example_object)
+		{
+		node *leaf = parameters->new_node(&memory, (node *)nullptr);
+		root = parameters->new_node(&memory, leaf);
+		root.load()->deserialise(memory, stream, example_object);
+		}
+
+	/*
 		K_TREE::TEXT_RENDER()
 		---------------------
 		Serialsise a human-readable version of tree to the stream

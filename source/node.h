@@ -215,6 +215,13 @@ namespace k_tree
 			void normalise_counts(void);
 
 			/*
+				NODE::DESERIALISE()
+				-------------------
+				Deserialise a previously serialised k-tree.  Serialised using cout << ktree;
+			*/
+			void deserialise(allocator &memory, std::istream &stream, object &example_object);
+
+			/*
 				NODE::TEXT_RENDER()
 				-------------------
 				Serialise the object in a human-readable format and down the given stream

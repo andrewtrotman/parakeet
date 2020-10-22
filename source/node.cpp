@@ -554,6 +554,40 @@ namespace k_tree
 		}
 
 	/*
+		NODE::DESERIALISE()
+		-------------------
+	*/
+	void node::deserialise(allocator &memory, std::istream &stream, object &example_object)
+		{
+		size_t value;
+
+		stream >> value;
+		leaves_below_this_point = value;
+
+		stream >> value;
+		children = value;
+
+		for (size_t dimension = 0; dimension < example_object.dimensions; dimension++)
+			{
+			float value;
+
+			stream >> value;
+			centroid->vector[dimension] = value;
+			}
+
+		for (size_t which_child = 0; which_child < children; which_child++)
+			{
+			if (children == 0)
+				child[which_child] = new_node(&memory, example_object.new_object(&memory));
+			else
+				{
+				child[which_child] = new_node(&memory, (node *)nullptr);
+				child[which_child].load()->deserialise(memory, stream, example_object);
+				}
+			}
+		}
+
+	/*
 		NODE::TEXT_RENDER()
 		-------------------
 		Serialise the object in a human-readable format and down the given stream
