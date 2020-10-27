@@ -273,6 +273,8 @@ void thread_ascii_to_float(std::vector<uint8_t *> &lines, std::vector<job *> &ve
 */
 int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_count, bool movie_mode)
 	{
+	thread_count = thread_count <= 0 ? 1 : thread_count;
+
 	k_tree::allocator memory;
 	std::vector<job *> vector_list;
 
@@ -372,9 +374,13 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 		Dump the tree to the output file
 	*/
 	std::ofstream outfile(outfilename);
-//	tree.text_render_penultimate(outfile);
-	outfile << tree;
-//	tree.text_render_movie(outfile);
+	if (movie_mode)
+		tree.text_render_movie(outfile);
+	else
+		{
+//		tree.text_render_penultimate(outfile);
+		outfile << tree;
+		}
 	outfile.close();
 
 	/*
@@ -468,7 +474,7 @@ int unittest(void)
 */
 int usage(char *exename)
 	{
-	std::cout << "Usage:" << exename << " build  <in_file> <tree_order> <outfile>\n";
+	std::cout << "Usage:" << exename << " build  <in_file> <tree_order> <outfile> <thread_count>\n";
 	std::cout << "      " << exename << " load  <in_file> <tree_order> <outfile>\n";
 	std::cout << "      " << exename << " movie  <in_file> <tree_order> <outfile>\n";
 	std::cout << "      " << exename << " unittest\n";
@@ -489,7 +495,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "unittest") == 0)
 		return unittest();
 	else if (strcmp(argv[1], "build") == 0)
-		return build(argv[2], atoi(argv[3]), argv[4], 1, false);
+		return build(argv[2], atoi(argv[3]), argv[4], atoi(argv[5]), false);
 	else if (strcmp(argv[1], "load") == 0)
 		return load(argv[2], atoi(argv[3]), argv[4]);
 	else if (strcmp(argv[1], "movie") == 0)
