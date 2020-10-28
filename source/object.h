@@ -158,10 +158,10 @@ namespace k_tree
 						/*
 							On AVX512 we have an instruction for fabs()
 						*/
-						__m512 a_minus_b = _mm256_sub_ps(_mm512_loadu_ps(vector + dimension), _mm512_loadu_ps(b->vector + dimension));
-						__m512 result = _mm512_abs_ps(a_minus_b);
+						__m512 diff = _mm512_sub_ps(_mm512_loadu_ps(vector + dimension), _mm512_loadu_ps(b->vector + dimension));
+						__m512 result = _mm512_abs_ps(diff);
 
-						total += horizontal_sum(result);
+						total += _mm512_reduce_add_ps(result);
 						}
 				#else
 					for (size_t dimension = 0; dimension < dimensions; dimension += 8)
