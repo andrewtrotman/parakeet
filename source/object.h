@@ -267,7 +267,13 @@ namespace k_tree
 			void fused_subtract_divide(object &operand, float constant)
 				{
 				#ifdef __AVX512F__
-					static_assert(false, "fused_subtract_divide() for AVX512 is not implemented yet");
+					__m512 factor = _mm512_set1_ps(constant);
+					for (size_t dimension = 0; dimension < dimensions; dimension += 16)
+						{
+						__m512 me = _mm512_loadu_ps(vector + dimension);
+						__m512 answer = _mm512_add_ps(me, _mm512_div_ps(_mm512_sub_ps(_mm512_loadu_ps(operand.vector + dimension), me), factor));
+						_mm512_storeu_ps(vector + dimension, answer);
+						}
 				#else
 					__m256 factor = _mm256_set1_ps(constant);
 					for (size_t dimension = 0; dimension < dimensions; dimension += 8)

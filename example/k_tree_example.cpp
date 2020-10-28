@@ -487,18 +487,13 @@ int usage(char *exename)
 */
 int main(int argc, char *argv[])
 	{
-	if (argc != 5)
-		if (argc == 2)
-			return unittest();
-		else
-			return usage(argv[0]);
-	else if (strcmp(argv[1], "unittest") == 0)
+	if (argc == 2 && strcmp(argv[1], "unittest") == 0)
 		return unittest();
-	else if (strcmp(argv[1], "build") == 0)
+	else if (argc == 6 && strcmp(argv[1], "build") == 0)
 		return build(argv[2], atoi(argv[3]), argv[4], atoi(argv[5]), false);
-	else if (strcmp(argv[1], "load") == 0)
+	else if (argc == 5 && strcmp(argv[1], "load") == 0)
 		return load(argv[2], atoi(argv[3]), argv[4]);
-	else if (strcmp(argv[1], "movie") == 0)
+	else if (argc == 5 && strcmp(argv[1], "movie") == 0)
 		return build(argv[2], atoi(argv[3]), argv[4], 1, true);
 	else
 		return usage(argv[0]);
