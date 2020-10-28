@@ -145,6 +145,47 @@ namespace k_tree
 				}
 
 			/*
+				OBJECT::DISTANCE_L1()
+				---------------------
+				Return the L1 (Manhatten) distance between parameters a and b using SIMD operations
+			*/
+			float distance_l1(const object *b)
+				{
+				float total = 0;
+				#ifdef __AVX512F__
+					for (size_t dimension = 0; dimension < dimensions; dimension += 16)
+						{
+						/*
+							On AVX512 we have an instruction for fabs()
+						*/
+						__m512 a_minus_b = _mm256_sub_ps(_mm512_loadu_ps(vector + dimension), _mm512_loadu_ps(b->vector + dimension));
+						__m512 result = _mm512_abs_ps(a_minus_b);
+
+						total += horizontal_sum(result);
+						}
+				#else
+					for (size_t dimension = 0; dimension < dimensions; dimension += 8)
+						{
+						/*
+							Compute abs(a-b) by computing max(a-b, b-a)
+						*/
+						__m256 va = _mm256_loadu_ps(vector + dimension);
+						__m256 vb = _mm256_loadu_ps(b->vector + dimension);
+						__m256 a_minus_b = _mm256_sub_ps(va, vb);
+						__m256 b_minus_a = _mm256_sub_ps(vb, va);
+						__m256 result = _mm256_max_ps(a_minus_b, b_minus_a);
+
+						/*
+							and add
+						*/
+						total += horizontal_sum(result);
+						}
+
+				#endif
+				return total;
+				}
+
+			/*
 				OBJECT::DISTANCE_SQUARED()
 				--------------------------
 				Return the square of the Euclidean distance between parameters a and b using SIMD operations
