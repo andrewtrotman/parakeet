@@ -88,6 +88,11 @@ namespace k_tree
 				answer->vector = (float *)allocator->malloc(sizeof(*vector) * width);
 				memset(answer->vector, 0, sizeof(*answer->vector ) * width);
 
+				/*
+					Make sure we've flushed to memory before we return (to prevent instruction re-ordering)
+				*/
+				std::atomic_thread_fence(std::memory_order_seq_cst);
+
 				return answer;
 				}
 
@@ -123,7 +128,7 @@ namespace k_tree
 					permute to get: 0000 0000 0000 0000 EFGH EFGH EFGH EFGH
 				*/
 				__m256 missing = _mm256_castsi256_ps(_mm256_shuffle_epi32(_mm256_castps_si256(elements), _MM_SHUFFLE(0, 0, 0, 0)));
-				missing = _mm256_castsi256_ps(_mm256_permute2x128_si256(_mm256_setzero_si256(), missing, 3));
+				missing = _mm256_castsi256_ps(_mm256_permute2x128_si256(_mm256_setzero_si256(), _mm256_castps_si256(missing), 3));
 
 				/*
 					add
@@ -140,6 +145,47 @@ namespace k_tree
 				}
 
 			/*
+				OBJECT::DISTANCE_L1()
+				---------------------
+				Return the L1 (Manhatten) distance between parameters a and b using SIMD operations
+			*/
+			float distance_l1(const object *b)
+				{
+				float total = 0;
+				#ifdef __AVX512F__
+					for (size_t dimension = 0; dimension < dimensions; dimension += 16)
+						{
+						/*
+							On AVX512 we have an instruction for fabs()
+						*/
+						__m512 diff = _mm512_sub_ps(_mm512_loadu_ps(vector + dimension), _mm512_loadu_ps(b->vector + dimension));
+						__m512 result = _mm512_abs_ps(diff);
+
+						total += _mm512_reduce_add_ps(result);
+						}
+				#else
+					for (size_t dimension = 0; dimension < dimensions; dimension += 8)
+						{
+						/*
+							Compute abs(a-b) by computing max(a-b, b-a)
+						*/
+						__m256 va = _mm256_loadu_ps(vector + dimension);
+						__m256 vb = _mm256_loadu_ps(b->vector + dimension);
+						__m256 a_minus_b = _mm256_sub_ps(va, vb);
+						__m256 b_minus_a = _mm256_sub_ps(vb, va);
+						__m256 result = _mm256_max_ps(a_minus_b, b_minus_a);
+
+						/*
+							and add
+						*/
+						total += horizontal_sum(result);
+						}
+
+				#endif
+				return total;
+				}
+
+			/*
 				OBJECT::DISTANCE_SQUARED()
 				--------------------------
 				Return the square of the Euclidean distance between parameters a and b using SIMD operations
@@ -147,14 +193,22 @@ namespace k_tree
 			float distance_squared(const object *b)
 				{
 				float total = 0;
+				#ifdef __AVX512F__
+					for (size_t dimension = 0; dimension < dimensions; dimension += 16)
+						{
+						__m512 diff = _mm512_sub_ps(_mm512_loadu_ps(vector + dimension), _mm512_loadu_ps(b->vector + dimension));
+						__m512 result = _mm512_mul_ps(diff, diff);
+						total += _mm512_reduce_add_ps(result);
+						}
+				#else
+					for (size_t dimension = 0; dimension < dimensions; dimension += 8)
+						{
+						__m256 diff = _mm256_sub_ps(_mm256_loadu_ps(vector + dimension), _mm256_loadu_ps(b->vector + dimension));
+						__m256 result = _mm256_mul_ps(diff, diff);
+						total += horizontal_sum(result);
+						}
 
-				for (size_t dimension = 0; dimension < dimensions; dimension += 8)
-					{
-					__m256 diff = _mm256_sub_ps(_mm256_loadu_ps(vector + dimension), _mm256_loadu_ps(b->vector + dimension));
-					__m256 result = _mm256_mul_ps(diff, diff);
-					total += horizontal_sum(result);
-					}
-
+				#endif
 				return total;
 				}
 
@@ -199,8 +253,13 @@ namespace k_tree
 			*/
 			void operator+=(const object &operand)
 				{
-				for (size_t dimension = 0; dimension < dimensions; dimension += 8)
-					_mm256_storeu_ps(vector + dimension, _mm256_add_ps(_mm256_loadu_ps(vector + dimension), _mm256_loadu_ps(operand.vector + dimension)));
+				#ifdef __AVX512F__
+					for (size_t dimension = 0; dimension < dimensions; dimension += 16)
+						_mm512_storeu_ps(vector + dimension, _mm512_add_ps(_mm512_loadu_ps(vector + dimension), _mm512_loadu_ps(operand.vector + dimension)));
+				#else
+					for (size_t dimension = 0; dimension < dimensions; dimension += 8)
+						_mm256_storeu_ps(vector + dimension, _mm256_add_ps(_mm256_loadu_ps(vector + dimension), _mm256_loadu_ps(operand.vector + dimension)));
+				#endif
 				}
 
 			/*
@@ -210,10 +269,17 @@ namespace k_tree
 			*/
 			void operator/=(float constant)
 				{
-				__m256 divisor = _mm256_set1_ps(constant);
+				#ifdef __AVX512F__
+					__m512 divisor = _mm512_set1_ps(constant);
 
-				for (size_t dimension = 0; dimension < dimensions; dimension += 8)
-					_mm256_storeu_ps(vector + dimension, _mm256_div_ps(_mm256_loadu_ps(vector + dimension), divisor));
+					for (size_t dimension = 0; dimension < dimensions; dimension += 16)
+						_mm512_storeu_ps(vector + dimension, _mm512_div_ps(_mm512_loadu_ps(vector + dimension), divisor));
+				#else
+					__m256 divisor = _mm256_set1_ps(constant);
+
+					for (size_t dimension = 0; dimension < dimensions; dimension += 8)
+						_mm256_storeu_ps(vector + dimension, _mm256_div_ps(_mm256_loadu_ps(vector + dimension), divisor));
+				#endif
 				}
 
 			/*
@@ -223,9 +289,41 @@ namespace k_tree
 			*/
 			void fused_multiply_add(object &operand, float constant)
 				{
-				__m256 factor = _mm256_set1_ps(constant);
-				for (size_t dimension = 0; dimension < dimensions; dimension += 8)
-					_mm256_storeu_ps(vector + dimension, _mm256_fmadd_ps(_mm256_loadu_ps(operand.vector + dimension), factor, _mm256_loadu_ps(vector + dimension)));
+				#ifdef __AVX512F__
+					__m512 factor = _mm512_set1_ps(constant);
+					for (size_t dimension = 0; dimension < dimensions; dimension += 16)
+						_mm512_storeu_ps(vector + dimension, _mm512_fmadd_ps(_mm512_loadu_ps(operand.vector + dimension), factor, _mm512_loadu_ps(vector + dimension)));
+				#else
+					__m256 factor = _mm256_set1_ps(constant);
+					for (size_t dimension = 0; dimension < dimensions; dimension += 8)
+						_mm256_storeu_ps(vector + dimension, _mm256_fmadd_ps(_mm256_loadu_ps(operand.vector + dimension), factor, _mm256_loadu_ps(vector + dimension)));
+				#endif
+				}
+
+			/*
+				OBJECT::FUSED_SUBTRACT_DIVIDE()
+				-------------------------------
+				this += (operand - this) / constant
+			*/
+			void fused_subtract_divide(object &operand, float constant)
+				{
+				#ifdef __AVX512F__
+					__m512 factor = _mm512_set1_ps(constant);
+					for (size_t dimension = 0; dimension < dimensions; dimension += 16)
+						{
+						__m512 me = _mm512_loadu_ps(vector + dimension);
+						__m512 answer = _mm512_add_ps(me, _mm512_div_ps(_mm512_sub_ps(_mm512_loadu_ps(operand.vector + dimension), me), factor));
+						_mm512_storeu_ps(vector + dimension, answer);
+						}
+				#else
+					__m256 factor = _mm256_set1_ps(constant);
+					for (size_t dimension = 0; dimension < dimensions; dimension += 8)
+						{
+						__m256 me = _mm256_loadu_ps(vector + dimension);
+						__m256 answer = _mm256_add_ps(me, _mm256_div_ps(_mm256_sub_ps(_mm256_loadu_ps(operand.vector + dimension), me), factor));
+						_mm256_storeu_ps(vector + dimension, answer);
+						}
+				#endif
 				}
 
 			/*
@@ -235,6 +333,11 @@ namespace k_tree
 			*/
 			static void unittest(void)
 				{
+				#ifdef __AVX512F__
+					std::cout << "Using AVX-512\n";
+				#else
+					std::cout << "Using AVX2\n";
+				#endif
 				object initial(8);
 				allocator memory;
 

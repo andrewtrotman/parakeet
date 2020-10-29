@@ -283,7 +283,21 @@ namespace k_tree
 		/*
 			Update the mean for the cuttent node as data has been added somewher below here.
 		*/
-		compute_mean();
+		/*
+			We can avoid re-calculating the mean by computing the delta (the amount it shifts) and adding that instead.  The maths (thanks to Shlomo)
+			is below, where M is the current mean, X is the new point, and n is the number of points alreay in the mean
+				M + delta = (X + n * M) / (n + 1)
+				delta = (X + n * M) / (n + 1) – M
+				delta = ((X + n * M) - (n + 1) * M) /  (n + 1)
+				delta = (X - M) / (n + 1)
+			in the context of this method:
+				centroid += (data - centroid) / (leaves_below_this_point + 1)
+				leaves_below_this_point++;
+			Note that there is an accumulation of rounding errors.  If you want to compute the mean at each node each time then use this line instead:
+				compute_mean();
+		*/
+		centroid->fused_subtract_divide(*data, leaves_below_this_point + 1);
+		leaves_below_this_point++;
 
 		/*
 			Return whether or not we caused a split, and therefore replacement is necessary
