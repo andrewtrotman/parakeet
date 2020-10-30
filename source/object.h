@@ -143,6 +143,56 @@ namespace k_tree
 				*/
 				return  _mm256_cvtss_f32(answer);
 				}
+				
+#ifdef NEVER
+			/*
+				OBJECT::DISTANCE_L_N()
+				----------------------
+				Return the Ln distance between parameters a and b using SIMD operations, where Ln = (x^n-y^n)^(1/n).
+				Since the ^(1/n) is order preserving, we don't do that part of the of the operation
+			*/
+			float distance_l_n(const object *b, const float n)
+				{
+				float total = 0;
+				#ifdef __AVX512F__
+					for (size_t dimension = 0; dimension < dimensions; dimension += 16)
+						{
+						/*
+							On AVX512 we have an instruction for fabs()
+						*/
+						__m512 diff = _mm512_sub_ps(_mm512_loadu_ps(vector + dimension), _mm512_loadu_ps(b->vector + dimension));
+						__m512 result = _mm512_abs_ps(diff);
+
+						total += _mm512_reduce_add_ps(result);
+						}
+				#else
+					__m256 n_vector = _mm256_set1_ps(n);
+					for (size_t dimension = 0; dimension < dimensions; dimension += 8)
+						{
+						/*
+							Compute abs(a-b)
+						*/
+						__m256 va = _mm256_loadu_ps(vector + dimension);
+						__m256 vb = _mm256_loadu_ps(b->vector + dimension);
+						__m256 a_minus_b = _mm256_sub_ps(va, vb);
+						__m256 b_minus_a = _mm256_sub_ps(vb, va);
+						__m256 diff = _mm256_max_ps(a_minus_b, b_minus_a);
+
+						/*
+							raise it to the nth power
+						*/
+//						__m256 result = _mm256_pow_ps(diff, n_vector);
+
+						/*
+							and add
+						*/
+						total += horizontal_sum(result);
+						}
+
+				#endif
+				return total;
+				}
+#endif
 
 			/*
 				OBJECT::DISTANCE_L1()

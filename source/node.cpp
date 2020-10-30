@@ -169,6 +169,11 @@ namespace k_tree
 		Returns:
 			True on success (the data was split into 2 clusters)
 			Fase on failure (the data all ended up in one cluster)
+
+
+		For improvements on standard k-means see:
+			C. C. Aggarwal, A. Hinneburg, D. A. Keim (2001), On the Surprising Behavior of Distance Metrics in High Dimensional Space, ICDT 2001
+			C. Elkan (2003) Using the Triangle Inequality to Accelerate k-Means, ICML-2003
 	*/
 	bool node::split(allocator *memory, node **child_1_out, node **child_2_out, size_t initial_first_cluster) const
 		{
