@@ -170,7 +170,6 @@ namespace k_tree
 			True on success (the data was split into 2 clusters)
 			Fase on failure (the data all ended up in one cluster)
 
-
 		For improvements on standard k-means see:
 			C. C. Aggarwal, A. Hinneburg, D. A. Keim (2001), On the Surprising Behavior of Distance Metrics in High Dimensional Space, ICDT 2001
 			C. Elkan (2003) Using the Triangle Inequality to Accelerate k-Means, ICML-2003
@@ -178,117 +177,151 @@ namespace k_tree
 	bool node::split(allocator *memory, node **child_1_out, node **child_2_out, size_t initial_first_cluster) const
 		{
 		size_t place_in;
-		size_t assignment[max_children + 1];
-		size_t first_cluster_size;
-		size_t second_cluster_size;
+		size_t cluster_size[2];
 		float old_sum_distance = std::numeric_limits<float>::max();
 		float new_sum_distance = old_sum_distance / 2;
 
 		/*
+			Each point gets an assignment to a data point (kept in assignment[]).  If we keep the distance to
+			that when we compute it, then we can compute the worst posible case as the last computed distance plus
+			any shift in that centroid (kept in distance_to_assignment[]).  All points are initially assigned to cluster 0.
+			Each time we move the center we keep the delta (in delta[0] and delta[1]), and add that to the estimated distance
+			each time.
+		*/
+		size_t assignment[max_children + 1];
+		float distance_to_assignment[max_children + 1];
+		float delta[2] = {0.0, 0.0};
+		memset(assignment, 0, sizeof(assignment));
+
+		/*
 			Allocate space
 		*/
-		object *centroid_1 = centroid->new_object(memory);
-		object *centroid_2 = centroid->new_object(memory);
-		node *child_1 = *child_1_out = new_node(memory, (node *)nullptr);
-		node *child_2 = *child_2_out = new_node(memory, (node *)nullptr);
+		object *centroid[2];
+		centroid[0] = this->centroid->new_object(memory);
+		centroid[1] = this->centroid->new_object(memory);
+		object *new_centroid[2];
+		new_centroid[0] = this->centroid->new_object(memory);
+		new_centroid[1] = this->centroid->new_object(memory);
+		node *child[2];
+		child[0] = *child_1_out = new_node(memory, (node *)nullptr);
+		child[1] = *child_2_out = new_node(memory, (node *)nullptr);
 
 		/*
 			Start with the first member, then find the furthest away member and use that as the second point
 		*/
-		*centroid_1 = *child[initial_first_cluster].load()->centroid;
+		*centroid[0] = *this->child[initial_first_cluster].load()->centroid;
 
 		size_t best_choice = 1;
-		double smallest_distance = centroid_1->distance_squared(child[1].load()->centroid);
+		double smallest_distance = centroid[0]->distance_squared(this->child[1].load()->centroid);
 		for (size_t which = 2; which <= max_children; which++)
 			{
-			float distance = centroid_1->distance_squared(child[which].load()->centroid);
+			float distance = centroid[0]->distance_squared(this->child[which].load()->centroid);
 			if (distance < smallest_distance)
 				{
 				best_choice = which;
 				smallest_distance = distance;
 				}
 			}
-		*centroid_2 = *child[best_choice].load()->centroid;
+		*centroid[1] = *this->child[best_choice].load()->centroid;
 
 		/*
 			The stopping condition is that the sum squared distance from the cluster centres has become constant (so no more shuffling can happen)
 		*/
 		while (old_sum_distance > (1.0 + float_resolution) * new_sum_distance)
 			{
+			/*
+				Compute the distance between the centroids
+				Lemma 1 from C. Elkan (2003) Using the Triangle Inequality to Accelerate k-Means, ICML-2003
+				if d(c1,c2) >= 2d(x,c1) then d(x,c2) > d(x,c1)
+				in other words, if the distance from the data point to the first cluster is less than half the distance between the clusters then the first cluster must be the closest
+			*/
+			float half_distance_between_centroids = centroid[0]->distance_squared(centroid[1]) / 2.0;
+
 			old_sum_distance = new_sum_distance;
 			new_sum_distance = 0;
-			first_cluster_size = second_cluster_size = 0;
+			for (size_t which = 0; which < 2; which++)
+				cluster_size[which] = 0;
 			for (size_t which = 0; which <= max_children; which++)
 				{
 				/*
 					Compute the distance (squared) to each of the two new cluster centroids
 				*/
-				float distance_to_first = centroid_1->distance_squared(child[which].load()->centroid);
-				float distance_to_second = centroid_2->distance_squared(child[which].load()->centroid);
+				float distance_to[2];
 
-				/*
-					Choose a cluster, tie_break on the size of the cluster (put in the smallest to avoid empty clusters)
-				*/
-				if (distance_to_first == distance_to_second)
-					place_in = first_cluster_size < second_cluster_size ? 0 : 1;
-				else if (distance_to_first < distance_to_second)
-					place_in = 0;
-				else
-					place_in = 1;
-
-				/*
-					Accumulate the stats for each new centroid (including the partial sum so that we can compute the centroid next)
-				*/
-				if (place_in == 0)
+				float new_distance = distance_to_assignment[which] + delta[assignment[which]];
+				if (new_distance < half_distance_between_centroids)
 					{
-					assignment[which] = 0;
-					new_sum_distance += distance_to_first;
-					first_cluster_size++;
+					distance_to_assignment[which] = new_distance;			// no change to which cluster we're in
+					cluster_size[assignment[which]]++;
 					}
 				else
 					{
-					assignment[which] = 1;
-					new_sum_distance += distance_to_second;
-					second_cluster_size++;
+					size_t other = assignment[which] == 0 ? 1 : 0;
+
+					distance_to[assignment[which]] = centroid[assignment[which]]->distance_squared(this->child[which].load()->centroid);
+					if (distance_to[assignment[which]] < half_distance_between_centroids)
+						distance_to[other] = centroid[other]->distance_squared(this->child[which].load()->centroid);
+					else
+						distance_to[other] = distance_to[assignment[which]] + 1;
+
+					/*
+						Choose a cluster, tie_break on the size of the cluster (put in the smallest in an attempt to avoid empty clusters)
+					*/
+					if (distance_to[0] == distance_to[1])
+						place_in = cluster_size[0] < cluster_size[1] ? 0 : 1;
+					else if (distance_to[0] < distance_to[1])
+						place_in = 0;
+					else
+						place_in = 1;
+
+					/*
+						Accumulate the stats for each new centroid (including the partial sum so that we can compute the centroid next)
+					*/
+					assignment[which] = place_in;
+					distance_to_assignment[which] = distance_to[place_in];
+					new_sum_distance += distance_to[place_in];
+					cluster_size[place_in]++;
 					}
 				}
 
 			/*
-				Rebuild the centroids: first compute the sum
+				Build the new centroids: first compute the sum
 			*/
-			centroid_1->zero();
-			centroid_2->zero();
+			for (size_t which = 0; which < 2; which++)
+				new_centroid[which]->zero();
+
 			for (size_t which = 0; which <= max_children; which++)
-				{
-				if (assignment[which] == 0)
-					*centroid_1 += *child[which].load()->centroid;
-				else
-					*centroid_2 += *child[which].load()->centroid;
-				}
+				*new_centroid[assignment[which]] += *this->child[which].load()->centroid;
 
 			/*
-				Rebuild the centroids: then average
+				Build the centroids: then average
 			*/
-			*centroid_1 /= first_cluster_size;
-			*centroid_2 /= second_cluster_size;
+			for (size_t which = 0; which < 2; which++)
+				*new_centroid[which] /= cluster_size[which];
+
+			/*
+				Compute the centroid shifts
+			*/
+			for (size_t which = 0; which < 2; which++)
+				delta[which] = new_centroid[0]->distance_squared(centroid[which]);
+
+			/*
+				Use the new centroids
+			*/
+			for (size_t which = 0; which < 2; which++)
+				std::swap(centroid[which], new_centroid[which]);
 			}
 
 		/*
 			At this point we have the new centroids and we have which node goes where in assignment[] so we populate the two new nodes
 		*/
 		for (size_t which = 0; which <= max_children; which++)
-			if (assignment[which] == 0)
-				{
-				child_1->child[child_1->children] = child[which].load();
-				child_1->children++;
-				}
-			else
-				{
-				child_2->child[child_2->children] = child[which].load();
-				child_2->children++;
-				}
+			{
+			child[assignment[which]]->child[child[assignment[which]]->children] = this->child[which].load();
+			child[assignment[which]]->children++;
+			}
 
-		return first_cluster_size != 0 && second_cluster_size != 0;			// return true if we are able to split into two clusters, or false if everyhting ended up in one cluster.
+		return cluster_size[0] != 0 && cluster_size[1] != 0;			// return true if we are able to split into two clusters, or false if everyhting ended up in one cluster.
 		}
 
 	/*

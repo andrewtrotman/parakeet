@@ -26,10 +26,10 @@ namespace k_tree
 		{
 		friend class node;
 		friend class k_tree;
-		static_assert(sizeof(float) == 4);			// floats must be 32-bit for the SIMD code to work
+		static_assert(sizeof(float) == 4);					// floats must be 32-bit for the SIMD code to work
 
 		public:
-			size_t dimensions;			// the number of dimensions of the float
+			size_t dimensions;									// the number of dimensions of the float
 			float *vector;											// this object is simply a vector of floats (with SIMD single precision for operations)
 
 		private:
@@ -143,56 +143,23 @@ namespace k_tree
 				*/
 				return  _mm256_cvtss_f32(answer);
 				}
-				
-#ifdef NEVER
+
 			/*
 				OBJECT::DISTANCE_L_N()
 				----------------------
-				Return the Ln distance between parameters a and b using SIMD operations, where Ln = (x^n-y^n)^(1/n).
-				Since the ^(1/n) is order preserving, we don't do that part of the of the operation
+				Return the Ln distance between parameters a and b using SIMD operations, where Ln = (|x-y|^n)^(1/n).
+				Since the ^(1/n) is order preserving, we don't do that part of the of the operation.
+				There are no AVX functions for fabs() and for pow() so we do this without SIMD.  We also need to be aware that 0^0=1 in the padding.
 			*/
-			float distance_l_n(const object *b, const float n)
+			float distance_l_n(const object *b, const float power)
 				{
 				float total = 0;
-				#ifdef __AVX512F__
-					for (size_t dimension = 0; dimension < dimensions; dimension += 16)
-						{
-						/*
-							On AVX512 we have an instruction for fabs()
-						*/
-						__m512 diff = _mm512_sub_ps(_mm512_loadu_ps(vector + dimension), _mm512_loadu_ps(b->vector + dimension));
-						__m512 result = _mm512_abs_ps(diff);
 
-						total += _mm512_reduce_add_ps(result);
-						}
-				#else
-					__m256 n_vector = _mm256_set1_ps(n);
-					for (size_t dimension = 0; dimension < dimensions; dimension += 8)
-						{
-						/*
-							Compute abs(a-b)
-						*/
-						__m256 va = _mm256_loadu_ps(vector + dimension);
-						__m256 vb = _mm256_loadu_ps(b->vector + dimension);
-						__m256 a_minus_b = _mm256_sub_ps(va, vb);
-						__m256 b_minus_a = _mm256_sub_ps(vb, va);
-						__m256 diff = _mm256_max_ps(a_minus_b, b_minus_a);
+				for (size_t dimension = 0; dimension < dimensions; dimension++)
+					total += pow(fabs(b->vector[dimension] - vector[dimension]), power);
 
-						/*
-							raise it to the nth power
-						*/
-//						__m256 result = _mm256_pow_ps(diff, n_vector);
-
-						/*
-							and add
-						*/
-						total += horizontal_sum(result);
-						}
-
-				#endif
 				return total;
 				}
-#endif
 
 			/*
 				OBJECT::DISTANCE_L1()
