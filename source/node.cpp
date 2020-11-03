@@ -190,21 +190,28 @@ namespace k_tree
 		*/
 		size_t assignment[max_children + 1];
 		float distance_to_assignment[max_children + 1];
-		float delta[2] = {0.0, 0.0};
-		memset(assignment, 0, sizeof(assignment));
+
+		for (size_t which = 0; which <= max_children; which++)
+			{
+			assignment[which] = 0;
+			distance_to_assignment[which] = std::numeric_limits<float>::max();
+			}
 
 		/*
-			Allocate space
+			Allocate space and initialiase
 		*/
 		object *centroid[2];
-		centroid[0] = this->centroid->new_object(memory);
-		centroid[1] = this->centroid->new_object(memory);
 		object *new_centroid[2];
-		new_centroid[0] = this->centroid->new_object(memory);
-		new_centroid[1] = this->centroid->new_object(memory);
 		node *child[2];
+		float delta[2];
 		child[0] = *child_1_out = new_node(memory, (node *)nullptr);
 		child[1] = *child_2_out = new_node(memory, (node *)nullptr);
+		for (size_t which = 0; which < 2; which++)
+			{
+			centroid[which] = this->centroid->new_object(memory);
+			new_centroid[which] = this->centroid->new_object(memory);
+			delta[which] = 0;
+			}
 
 		/*
 			Start with the first member, then find the furthest away member and use that as the second point
@@ -251,7 +258,10 @@ namespace k_tree
 				float new_distance = distance_to_assignment[which] + delta[assignment[which]];
 				if (new_distance < half_distance_between_centroids)
 					{
-					distance_to_assignment[which] = new_distance;			// no change to which cluster we're in
+					/*
+						We can't have changed which cluster we're in
+					*/
+					distance_to_assignment[which] = new_distance;
 					cluster_size[assignment[which]]++;
 					}
 				else
@@ -259,7 +269,7 @@ namespace k_tree
 					size_t other = assignment[which] == 0 ? 1 : 0;
 
 					distance_to[assignment[which]] = centroid[assignment[which]]->distance_squared(this->child[which].load()->centroid);
-					if (distance_to[assignment[which]] < half_distance_between_centroids)
+					if (distance_to[assignment[which]] >= half_distance_between_centroids)
 						distance_to[other] = centroid[other]->distance_squared(this->child[which].load()->centroid);
 					else
 						distance_to[other] = distance_to[assignment[which]] + 1;
@@ -303,7 +313,7 @@ namespace k_tree
 				Compute the centroid shifts
 			*/
 			for (size_t which = 0; which < 2; which++)
-				delta[which] = new_centroid[0]->distance_squared(centroid[which]);
+				delta[which] = new_centroid[which]->distance_squared(centroid[which]);
 
 			/*
 				Use the new centroids
