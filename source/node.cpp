@@ -4,6 +4,7 @@
 	Copyright (c) 2020 Andrew Trotman
 	Released under the 2-clause BSD license (See:https://en.wikipedia.org/wiki/BSD_licenses)
 */
+#include <math.h>
 #include <stdint.h>
 
 #include <thread>
@@ -242,7 +243,8 @@ namespace k_tree
 				if d(c1,c2) >= 2d(x,c1) then d(x,c2) > d(x,c1)
 				in other words, if the distance from the data point to the first cluster is less than half the distance between the clusters then the first cluster must be the closest
 			*/
-			float half_distance_between_centroids = centroid[0]->distance_squared(centroid[1]) / 2.0;
+			float half_distance_between_centroids = sqrt(centroid[0]->distance_squared(centroid[1])) / 2.0;
+			half_distance_between_centroids *= half_distance_between_centroids;
 
 			old_sum_distance = new_sum_distance;
 			new_sum_distance = 0;
