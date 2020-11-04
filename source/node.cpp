@@ -144,10 +144,22 @@ namespace k_tree
 		node *child_2 = *child_2_out = new_node(memory, (node *)nullptr);
 
 		/*
-			Start with the first and last members of the current node.  It should really be 2 random elements, but close enough!
+			Start with the first member, then find the furthest away member and use that as the second point
 		*/
 		*centroid_1 = *child[0]->centroid;
-		*centroid_2 = *child[children - 1]->centroid;
+
+		size_t best_choice = 1;
+		double smallest_distance = centroid_1->distance_squared(child[1]->centroid);
+		for (size_t which = 2; which <= max_children; which++)
+			{
+			float distance = centroid_1->distance_squared(child[which]->centroid);
+			if (distance < smallest_distance)
+				{
+				best_choice = which;
+				smallest_distance = distance;
+				}
+			}
+		*centroid_2 = *child[best_choice]->centroid;
 
 		/*
 			The stopping condition is that the sum squared distance from the cluster centres has become constant (so no more shuffling can happen)
