@@ -177,7 +177,6 @@ namespace k_tree
 	*/
 	bool node::split(allocator *memory, node **child_1_out, node **child_2_out, size_t initial_first_cluster) const
 		{
-		size_t place_in;
 		size_t cluster_size[2];
 		float old_sum_distance = std::numeric_limits<float>::max();
 		float new_sum_distance = old_sum_distance / 2;
@@ -190,12 +189,14 @@ namespace k_tree
 			each time.
 		*/
 		size_t assignment[max_children + 1];
-		float distance_to_assignment[max_children + 1];
+		float distance_to_assignment[max_children + 1];		// this is an over estimate of the distance (i.e d <= distance_to_other)
+float distance_to_other[max_children + 1];			// this is and under estimate of the distance (i.e d >= distance_to_other)
 
 		for (size_t which = 0; which <= max_children; which++)
 			{
 			assignment[which] = 0;
 			distance_to_assignment[which] = std::numeric_limits<float>::max();
+distance_to_other[which] = 0;
 			}
 
 		/*
@@ -255,44 +256,44 @@ namespace k_tree
 				/*
 					Compute the distance (squared) to each of the two new cluster centroids
 				*/
-				float distance_to[2];
-
-				float new_distance = distance_to_assignment[which] + delta[assignment[which]];
-				if (new_distance < half_distance_between_centroids)
-					{
-					/*
-						We can't have changed which cluster we're in
-					*/
-					distance_to_assignment[which] = new_distance;
-					cluster_size[assignment[which]]++;
-					}
+				size_t other = assignment[which] == 0 ? 1 : 0;
+				distance_to_other[which] -= delta[assignment[other]];					// the max we might have moved this cluster towards the point
+				distance_to_assignment[which] += delta[assignment[which]];			// the max we might have moved this cluster away from the point
+				if (distance_to_assignment[which] < distance_to_other[which])
+					cluster_size[assignment[which]]++;		// we're closer to one than the other
+				else if (distance_to_assignment[which] < half_distance_between_centroids)
+					cluster_size[assignment[which]]++;		// we're less then halfway between the two centroids despire the bounds crossing
 				else
 					{
-					size_t other = assignment[which] == 0 ? 1 : 0;
+					distance_to_assignment[which] = centroid[assignment[which]]->distance_squared(this->child[which].load()->centroid);
 
-					distance_to[assignment[which]] = centroid[assignment[which]]->distance_squared(this->child[which].load()->centroid);
-					if (distance_to[assignment[which]] >= half_distance_between_centroids)
-						distance_to[other] = centroid[other]->distance_squared(this->child[which].load()->centroid);
-					else
-						distance_to[other] = distance_to[assignment[which]] + 1;
+					if (distance_to_assignment[which] >= half_distance_between_centroids)
+						distance_to_other[which] = centroid[other]->distance_squared(this->child[which].load()->centroid);
+					else if (distance_to_assignment[which] >= distance_to_other[which])
+						distance_to_other[which] = centroid[other]->distance_squared(this->child[which].load()->centroid);
 
 					/*
 						Choose a cluster, tie_break on the size of the cluster (put in the smallest in an attempt to avoid empty clusters)
 					*/
-					if (distance_to[0] == distance_to[1])
-						place_in = cluster_size[0] < cluster_size[1] ? 0 : 1;
-					else if (distance_to[0] < distance_to[1])
-						place_in = 0;
-					else
-						place_in = 1;
+					if (distance_to_assignment[which] > distance_to_other[which])
+						{
+						assignment[which] = other;
+						std::swap(distance_to_assignment[which], distance_to_other[which]);
+						}
+					else if (distance_to_assignment[which] == distance_to_other[which])
+						{
+						size_t place_in = cluster_size[0] < cluster_size[1] ? 0 : 1;
 
-					/*
-						Accumulate the stats for each new centroid (including the partial sum so that we can compute the centroid next)
-					*/
-					assignment[which] = place_in;
-					distance_to_assignment[which] = distance_to[place_in];
-					new_sum_distance += distance_to[place_in];
-					cluster_size[place_in]++;
+						assignment[which] = place_in;
+						if (place_in != assignment[which])
+							{
+							assignment[which] = other;
+							std::swap(distance_to_assignment[which], distance_to_other[which]);
+							}
+						}
+
+					cluster_size[assignment[which]]++;
+					new_sum_distance += distance_to_assignment[which];
 					}
 				}
 
