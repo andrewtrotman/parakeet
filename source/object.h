@@ -6,6 +6,7 @@
 */
 #pragma once
 
+#include <math.h>
 #include <assert.h>
 #include <string.h>
 #include <immintrin.h>
