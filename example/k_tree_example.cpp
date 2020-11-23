@@ -279,12 +279,6 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 	std::vector<job *> vector_list;
 
 	/*
-		Check the tree order is "reasonable"
-	*/
-	if (tree_order < 2 || tree_order > 1'000'000)
-		exit(printf("Tree order must be between 2 and 1,000,000\n"));
-
-	/*
 		Read the source file into memory - and check that we got a file
 	*/
 	std::string file_contents;
@@ -395,6 +389,122 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 	return 0;
 	}
 
+
+
+/*
+	BUILD_BIN()
+	-----------
+	Build the k-tree from binary input data.  The format is:
+	<size_t width>
+	<vector<float>>...
+	Where each vectoris of <width> size
+*/
+int build_bin(char *infilename, size_t tree_order, char *outfilename, size_t thread_count)
+	{
+	thread_count = thread_count <= 0 ? 1 : thread_count;
+
+	k_tree::allocator memory;
+	std::vector<job *> vector_list;
+
+	/*
+		Read the source file into memory - and check that we got a file
+	*/
+	std::string file_contents;
+	size_t bytes = read_entire_file(infilename, file_contents);
+	if (bytes <= 0)
+		exit(printf("Cannot read vector file: '%s'\n", infilename));
+
+	/*
+		Read the dimensinality
+	*/
+	size_t dimensions = *(size_t *)file_contents.data();
+
+	/*
+		Declare the tree
+	*/
+	k_tree::k_tree tree(&memory, tree_order, dimensions);
+	k_tree::object *example_vector = tree.get_example_object();
+
+
+//******
+//******
+//******
+//******
+	/*
+		Load all the jobs
+	*/
+	vector_list[current_line] = new (memory.malloc(sizeof(job))) job(objectionable);
+
+
+	std::vector<std::thread>thread_pool_deascii;
+	vector_list.resize(lines.size());		// create space for each completed pointer
+	size_t gap = lines.size() / thread_count;
+	for (size_t which = 0; which < thread_count ; which++)
+		{
+		/*
+			If were the last "block" then make sure we get to the end (we assume lines.size() is not evenly dividible by the thread count)
+		*/
+		k_tree::allocator *local_allocator = new k_tree::allocator;
+		if (which == thread_count - 1)
+			thread_pool_deascii.push_back(std::thread(thread_ascii_to_float, std::ref(lines), std::ref(vector_list), std::ref(*example_vector), std::ref(*local_allocator), gap * which, lines.size()));
+		else
+			thread_pool_deascii.push_back(std::thread(thread_ascii_to_float, std::ref(lines), std::ref(vector_list), std::ref(*example_vector), std::ref(*local_allocator), gap * which, gap * which + gap));
+		}
+
+	/*
+		Wait until all the threads have finished
+	*/
+	for (auto &completed : thread_pool_deascii)
+		completed.join();
+
+	/*
+		Add them to the tree
+		Start a bunch of threads to each do some of the work
+	*/
+	std::unordered_map<std::thread *, worker *> thread_pool;
+	for (size_t which = 0; which < thread_count ; which++)
+		{
+		worker *work = new worker(&tree, &vector_list, false, outfilename);
+		thread_pool[new std::thread(thread_work, work)] = work;
+		}
+
+	/*
+		Wait until all the threads have finished
+	*/
+	for (auto &[thread, work] : thread_pool)
+		{
+		(void)work;					// remove the warning
+		thread->join();
+		}
+
+	/*
+		Fix the leaf count value
+	*/
+	tree.normalise_counts();
+
+	/*
+		Dump the tree to the output file
+	*/
+	std::ofstream outfile(outfilename);
+//	tree.text_render_penultimate(outfile);
+	outfile << tree;
+	outfile.close();
+
+	/*
+		Clean up
+	*/
+	for (auto &[thread, work] : thread_pool)
+		{
+		delete thread;
+		delete work;
+		}
+
+	return 0;
+	}
+
+
+
+
 /*
 	LOAD()
 	------
@@ -426,6 +536,7 @@ int load(char *infilename, size_t tree_order, char *outfilename)
 	while (*pos != '\0' && *pos != '\n' && *pos != '\r');
 
 	dimensions -= 2;		// subtract the leaf-count and the child-count to get the dimensionality
+
 	/*
 		Allocate the k-tree
 	*/
@@ -477,6 +588,7 @@ int usage(char *exename)
 	std::cout << "Usage:" << exename << " build  <in_file> <tree_order> <outfile> <thread_count>\n";
 	std::cout << "      " << exename << " load  <in_file> <tree_order> <outfile>\n";
 	std::cout << "      " << exename << " movie  <in_file> <tree_order> <outfile>\n";
+	std::cout << "      " << exename << " build_bin  <infile> <tree_order> <outfile> <thread_count>\n";
 	std::cout << "      " << exename << " unittest\n";
 	return 0;
 	}
@@ -489,12 +601,23 @@ int main(int argc, char *argv[])
 	{
 	if (argc == 2 && strcmp(argv[1], "unittest") == 0)
 		return unittest();
-	else if (argc == 6 && strcmp(argv[1], "build") == 0)
-		return build(argv[2], atoi(argv[3]), argv[4], atoi(argv[5]), false);
+
+	/*
+		Check the tree order is "reasonable"
+	*/
+	size_t tree_order = atoi(argv[3]);
+	if (tree_order < 2 || tree_order > 1'000'000)
+		exit(printf("Tree order must be between 2 and 1,000,000\n"));
+
+
+	if (argc == 6 && strcmp(argv[1], "build") == 0)
+		return build(argv[2], tree_order, argv[4], atoi(argv[5]), false);
 	else if (argc == 5 && strcmp(argv[1], "load") == 0)
-		return load(argv[2], atoi(argv[3]), argv[4]);
+		return load(argv[2], tree_order, argv[4]);
+	else if (argc == 5 && strcmp(argv[1], "build_bin") == 0)
+		return build_bin(argv[2], tree_order, argv[4], atoi(argv[5]));
 	else if (argc == 5 && strcmp(argv[1], "movie") == 0)
-		return build(argv[2], atoi(argv[3]), argv[4], 1, true);
+		return build(argv[2], tree_order, argv[4], 1, true);
 	else
 		return usage(argv[0]);
 	}
