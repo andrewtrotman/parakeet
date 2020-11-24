@@ -267,77 +267,12 @@ void thread_ascii_to_float(std::vector<uint8_t *> &lines, std::vector<job *> &ve
 	}
 
 /*
-	BUILD()
-	-------
-	Build the k-tree from the input data
+	ADD_LIST_TO_TREE()
+	------------------
 */
-int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_count, bool movie_mode)
+int add_list_to_tree(k_tree::allocator *memory, size_t dimensions, std::vector<job *>&vector_list, size_t tree_order, char *outfilename, size_t thread_count, bool movie_mode)
 	{
-	thread_count = thread_count <= 0 ? 1 : thread_count;
-
-	k_tree::allocator memory;
-	std::vector<job *> vector_list;
-
-	/*
-		Read the source file into memory - and check that we got a file
-	*/
-	std::string file_contents;
-	size_t bytes = read_entire_file(infilename, file_contents);
-	if (bytes <= 0)
-		exit(printf("Cannot read vector file: '%s'\n", infilename));
-
-	/*
-		Break it into lines
-	*/
-	std::vector<uint8_t *> lines;
-	buffer_to_list(lines, file_contents);
-
-	/*
-		Count the dimensionality of the first vector (the others should be the same)
-	*/
-	size_t dimensions = 0;
-	char *pos = (char *)lines[0];
-	do
-		{
-		while (isspace(*pos))
-			pos++;
-		if (*pos == '\0')
-			break;
-		dimensions++;
-		while (*pos != '\0' && !isspace(*pos))
-			pos++;
-		}
-	while (*pos != '\0');
-
-	/*
-		Declare the tree
-	*/
-	k_tree::k_tree tree(&memory, tree_order, dimensions);
-	k_tree::object *example_vector = tree.get_example_object();
-
-	/*
-		Convert from ASCII to floats in parallel
-	*/
-	std::vector<std::thread>thread_pool_deascii;
-	vector_list.resize(lines.size());		// create space for each completed pointer
-	size_t gap = lines.size() / thread_count;
-	for (size_t which = 0; which < thread_count ; which++)
-		{
-		/*
-			If were the last "block" then make sure we get to the end (we assume lines.size() is not evenly dividible by the thread count)
-		*/
-		k_tree::allocator *local_allocator = new k_tree::allocator;
-		if (which == thread_count - 1)
-			thread_pool_deascii.push_back(std::thread(thread_ascii_to_float, std::ref(lines), std::ref(vector_list), std::ref(*example_vector), std::ref(*local_allocator), gap * which, lines.size()));
-		else
-			thread_pool_deascii.push_back(std::thread(thread_ascii_to_float, std::ref(lines), std::ref(vector_list), std::ref(*example_vector), std::ref(*local_allocator), gap * which, gap * which + gap));
-		}
-
-	/*
-		Wait until all the threads have finished
-	*/
-	for (auto &completed : thread_pool_deascii)
-		completed.join();
+	k_tree::k_tree tree(memory, tree_order, dimensions);
 
 	/*
 		Add them to the tree
@@ -389,17 +324,12 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 	return 0;
 	}
 
-
-
 /*
-	BUILD_BIN()
-	-----------
-	Build the k-tree from binary input data.  The format is:
-	<size_t width>
-	<vector<float>>...
-	Where each vectoris of <width> size
+	BUILD()
+	-------
+	Build the k-tree from the input data
 */
-int build_bin(char *infilename, size_t tree_order, char *outfilename, size_t thread_count)
+int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_count, bool movie_mode)
 	{
 	thread_count = thread_count <= 0 ? 1 : thread_count;
 
@@ -415,27 +345,33 @@ int build_bin(char *infilename, size_t tree_order, char *outfilename, size_t thr
 		exit(printf("Cannot read vector file: '%s'\n", infilename));
 
 	/*
-		Read the dimensinality
+		Break it into lines
 	*/
-	size_t dimensions = *(size_t *)file_contents.data();
+	std::vector<uint8_t *> lines;
+	buffer_to_list(lines, file_contents);
 
 	/*
-		Declare the tree
+		Count the dimensionality of the first vector (the others should be the same)
 	*/
-	k_tree::k_tree tree(&memory, tree_order, dimensions);
-	k_tree::object *example_vector = tree.get_example_object();
+	size_t dimensions = 0;
+	char *pos = (char *)lines[0];
+	do
+		{
+		while (isspace(*pos))
+			pos++;
+		if (*pos == '\0')
+			break;
+		dimensions++;
+		while (*pos != '\0' && !isspace(*pos))
+			pos++;
+		}
+	while (*pos != '\0');
 
+	k_tree::object *example_vector = k_tree::object::snag(&memory, dimensions, nullptr);
 
-//******
-//******
-//******
-//******
 	/*
-		Load all the jobs
+		Convert from ASCII to floats in parallel
 	*/
-	vector_list[current_line] = new (memory.malloc(sizeof(job))) job(objectionable);
-
-
 	std::vector<std::thread>thread_pool_deascii;
 	vector_list.resize(lines.size());		// create space for each completed pointer
 	size_t gap = lines.size() / thread_count;
@@ -457,53 +393,52 @@ int build_bin(char *infilename, size_t tree_order, char *outfilename, size_t thr
 	for (auto &completed : thread_pool_deascii)
 		completed.join();
 
-	/*
-		Add them to the tree
-		Start a bunch of threads to each do some of the work
-	*/
-	std::unordered_map<std::thread *, worker *> thread_pool;
-	for (size_t which = 0; which < thread_count ; which++)
-		{
-		worker *work = new worker(&tree, &vector_list, false, outfilename);
-		thread_pool[new std::thread(thread_work, work)] = work;
-		}
-
-	/*
-		Wait until all the threads have finished
-	*/
-	for (auto &[thread, work] : thread_pool)
-		{
-		(void)work;					// remove the warning
-		thread->join();
-		}
-
-	/*
-		Fix the leaf count value
-	*/
-	tree.normalise_counts();
-
-	/*
-		Dump the tree to the output file
-	*/
-	std::ofstream outfile(outfilename);
-//	tree.text_render_penultimate(outfile);
-	outfile << tree;
-	outfile.close();
-
-	/*
-		Clean up
-	*/
-	for (auto &[thread, work] : thread_pool)
-		{
-		delete thread;
-		delete work;
-		}
-
-	return 0;
+	return add_list_to_tree(&memory, dimensions, vector_list, tree_order, outfilename, thread_count, movie_mode);
 	}
 
+/*
+	BUILD_BIN()
+	-----------
+	Build the k-tree from binary input data.  The format is:
+	<size_t width>
+	<vector<float>>...
+	Where each vectoris of <width> size
+*/
+int build_bin(char *infilename, size_t tree_order, char *outfilename, size_t thread_count, bool movie_mode)
+	{
+	thread_count = thread_count <= 0 ? 1 : thread_count;
 
+	k_tree::allocator memory;
+	std::vector<job *> vector_list;
 
+	/*
+		Read the source file into memory - and check that we got a file
+	*/
+	std::string file_contents;
+	size_t bytes = read_entire_file(infilename, file_contents);
+	if (bytes <= 0)
+		exit(printf("Cannot read vector file: '%s'\n", infilename));
+	char *file_contents_pointer = file_contents.data();
+	char *file_contents_end = file_contents_pointer + bytes;
+
+	/*
+		Read the dimensinality
+	*/
+	size_t dimensions = *(size_t *)file_contents_pointer;
+	file_contents_pointer += sizeof(size_t);
+
+	/*
+		Load all the jobs
+	*/
+	while (file_contents_pointer < file_contents_end)
+		{
+		k_tree::object *objectionable = k_tree::object::snag(&memory, dimensions, (float *)file_contents_pointer);
+		vector_list.push_back(new (memory.malloc(sizeof(job))) job(objectionable));
+		file_contents_pointer += dimensions * sizeof(float);
+		}
+
+	return add_list_to_tree(&memory, dimensions, vector_list, tree_order, outfilename, thread_count, movie_mode);
+	}
 
 /*
 	LOAD()
@@ -615,7 +550,7 @@ int main(int argc, char *argv[])
 	else if (argc == 5 && strcmp(argv[1], "load") == 0)
 		return load(argv[2], tree_order, argv[4]);
 	else if (argc == 5 && strcmp(argv[1], "build_bin") == 0)
-		return build_bin(argv[2], tree_order, argv[4], atoi(argv[5]));
+		return build_bin(argv[2], tree_order, argv[4], atoi(argv[5]), false);
 	else if (argc == 5 && strcmp(argv[1], "movie") == 0)
 		return build(argv[2], tree_order, argv[4], 1, true);
 	else

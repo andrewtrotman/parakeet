@@ -57,6 +57,20 @@ namespace k_tree
 
 		public:
 			/*
+				OBJECT::SNAG()
+				--------------
+				Turn an array of floats into one of the objects
+			*/
+			static object *snag(allocator *allocator, size_t dimensions, float *data)
+				{
+				object *another = (object *)allocator->malloc(sizeof(object));
+				another->dimensions = dimensions;
+				another->vector = data;
+				
+				return another;
+				}
+
+			/*
 				OBJECT::NEW_OBJECT()
 				--------------------
 				Return a new object placement-constructed in memory provided by the allocator
