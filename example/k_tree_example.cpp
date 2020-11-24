@@ -430,13 +430,16 @@ int build_bin(char *infilename, size_t tree_order, char *outfilename, size_t thr
 	/*
 		Load all the jobs
 	*/
+	size_t count = 0;
 	while (file_contents_pointer < file_contents_end)
 		{
 		k_tree::object *objectionable = k_tree::object::snag(&memory, dimensions, (float *)file_contents_pointer);
 		vector_list.push_back(new (memory.malloc(sizeof(job))) job(objectionable));
 		file_contents_pointer += dimensions * sizeof(float);
+		count++;
 		}
 
+	std::cout << "Vectors in file: " << count << "\n";
 	return add_list_to_tree(&memory, dimensions, vector_list, tree_order, outfilename, thread_count, movie_mode);
 	}
 
@@ -534,6 +537,8 @@ int usage(char *exename)
 */
 int main(int argc, char *argv[])
 	{
+puts("Start");
+
 	if (argc == 2 && strcmp(argv[1], "unittest") == 0)
 		return unittest();
 
@@ -544,12 +549,11 @@ int main(int argc, char *argv[])
 	if (tree_order < 2 || tree_order > 1'000'000)
 		exit(printf("Tree order must be between 2 and 1,000,000\n"));
 
-
 	if (argc == 6 && strcmp(argv[1], "build") == 0)
 		return build(argv[2], tree_order, argv[4], atoi(argv[5]), false);
 	else if (argc == 5 && strcmp(argv[1], "load") == 0)
 		return load(argv[2], tree_order, argv[4]);
-	else if (argc == 5 && strcmp(argv[1], "build_bin") == 0)
+	else if (argc == 6 && strcmp(argv[1], "build_bin") == 0)
 		return build_bin(argv[2], tree_order, argv[4], atoi(argv[5]), false);
 	else if (argc == 5 && strcmp(argv[1], "movie") == 0)
 		return build(argv[2], tree_order, argv[4], 1, true);
