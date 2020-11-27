@@ -1,0 +1,6 @@
+x = dlmread("ers", " ", [0, 2, 131, 2])
+y = dlmread("ers", " ", [0, 3, 131, 3])
+[vx, vy] = voronoi (x, y);
+h = convhull (x, y)
+plot (vx, vy, "-b", x, y, "o", x(h), y(h), "-g"); 
+axis([-15 15 -5 15])

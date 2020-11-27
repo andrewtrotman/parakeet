@@ -1,0 +1,52 @@
+frame = str2num(argv(){1});
+while (frame < 10000)
+	dx=[]; dy=[]; px=[]; py=[]; xx=[]; xy=[];
+	sx=[]; sy=[]; ox=[]; oy=[]; hx=[]; hy=[];
+	ddx=[]; ddy=[];
+
+	filename=["movie.", num2str(frame), ".txt"]
+	fp = fopen(filename, "r");
+
+	while ((l = fgetl(fp)) != -1)
+		[q,x,y] = strread(l, "%s %f %f");
+		if (strncmp(l, "\.", 1))
+			dx = [dx;x];
+			dy = [dy;y];
+		elseif (strncmp(l, "\+", 1))
+			px = [px;x];
+			py = [py;y];
+		elseif (strncmp(l, "x", 1))
+			xx = [xx;x];
+			xy = [xy;y];
+		elseif (strncmp(l, "\*", 1))
+			sx = [sx;x];
+			sy = [sy;y];
+		elseif (strncmp(l, "o", 1))
+			ox = [ox;x];
+			oy = [oy;y];
+		elseif (strncmp(l, "^", 1))
+			hx = [hx;x];
+			hy = [hy;y];
+		elseif (strncmp(l, "d", 1))
+			ddx = [ddx;x];
+			ddy = [ddy;y];
+		endif
+	endwhile
+	
+	fclose(fp);
+	
+	fig = figure("visible", "off");
+	plot(
+			dx,dy,".","markersize", 5, "LineWidth", 1,
+			ddx,ddy,"d","markersize", 5, "LineWidth", 1,
+			hx,hy,"^","markersize", 5, "LineWidth", 1,
+			ox,oy,"o","markersize", 5, "LineWidth", 1,
+			sx,sy,"*","markersize", 5, "LineWidth", 1,
+			xx,xy,"x","markersize", 5, "LineWidth", 1,
+			px,py,"+","markersize", 5, "LineWidth", 1
+			);
+	axis([-15, 10, -3, 18]);
+	print(fig, num2str(frame), "-dpng");
+	frame = frame + 1;
+endwhile
+
