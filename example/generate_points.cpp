@@ -39,7 +39,7 @@ std::vector<point> centroid;
 int main(int argc, const char *argv[])
 	{
 	size_t points = 1000;
-	size_t centers = 100;
+	size_t centers = 500;
 
 	/*
 		Generate the centers

@@ -537,8 +537,6 @@ int usage(char *exename)
 */
 int main(int argc, char *argv[])
 	{
-puts("Start");
-
 	if (argc == 2 && strcmp(argv[1], "unittest") == 0)
 		return unittest();
 
@@ -546,8 +544,8 @@ puts("Start");
 		Check the tree order is "reasonable"
 	*/
 	size_t tree_order = atoi(argv[3]);
-	if (tree_order < 2 || tree_order > 1'000'000)
-		exit(printf("Tree order must be between 2 and 1,000,000\n"));
+//	if (tree_order < 2 || tree_order > 1'000'000)
+//		exit(printf("Tree order must be between 2 and 1,000,000\n"));
 
 	if (argc == 6 && strcmp(argv[1], "build") == 0)
 		return build(argv[2], tree_order, argv[4], atoi(argv[5]), false);
