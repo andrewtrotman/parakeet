@@ -297,7 +297,7 @@ int add_list_to_tree(k_tree::allocator *memory, size_t dimensions, std::vector<j
 		}
 
 	auto took = JASS::timer::stop(timer);
-	std::cout << "Clustering took:" << took.milliseconds() << "milliseconds\n";
+	std::cout << "Clustering took:" << took.milliseconds() << " milliseconds\n";
 
 	/*
 		Fix the leaf count value
@@ -305,7 +305,7 @@ int add_list_to_tree(k_tree::allocator *memory, size_t dimensions, std::vector<j
 	timer = JASS::timer::start();
 	tree.normalise_counts();
 	took = JASS::timer::stop(timer);
-	std::cout << "Re-adjustment:" << took.milliseconds() << "milliseconds\n";
+	std::cout << "Re-adjustment:" << took.milliseconds() << " milliseconds\n";
 
 	/*
 		Dump the tree to the output file
@@ -321,7 +321,7 @@ int add_list_to_tree(k_tree::allocator *memory, size_t dimensions, std::vector<j
 		}
 	outfile.close();
 	took = JASS::timer::stop(timer);
-	std::cout << "Serialising:" << took.milliseconds() << "milliseconds\n";
+	std::cout << "Serialising:" << took.milliseconds() << " milliseconds\n";
 
 	/*
 		Clean up
@@ -407,7 +407,7 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 		completed.join();
 
 	auto took = JASS::timer::stop(timer);
-	std::cout << "Reading :" << took.milliseconds() << "milliseconds\n";
+	std::cout << "Reading :" << took.milliseconds() << " milliseconds\n";
 
 	return add_list_to_tree(&memory, dimensions, vector_list, tree_order, outfilename, thread_count, movie_mode);
 	}
@@ -457,7 +457,7 @@ int build_bin(char *infilename, size_t tree_order, char *outfilename, size_t thr
 		}
 
 	auto took = JASS::timer::stop(timer);
-	std::cout << "Reading :" << took.milliseconds() << "milliseconds\n";
+	std::cout << "Reading :" << took.milliseconds() << " milliseconds\n";
 
 	return add_list_to_tree(&memory, dimensions, vector_list, tree_order, outfilename, thread_count, movie_mode);
 	}
