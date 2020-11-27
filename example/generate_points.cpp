@@ -6,6 +6,8 @@
 #include <stdlib.h>
 
 #include <random>
+#include <vector>
+#include <algorithm>
 
 /*
 	CLASS POINT
@@ -31,6 +33,7 @@ class point
 	};
 
 std::vector<point> centroid;
+std::vector<point> data_point;
 
 /*
 	USAGE()
@@ -63,27 +66,41 @@ int main(int argc, const char *argv[])
 	/*
 		Generate points around each centre
 	*/
-	FILE *fp = fopen("a.out.bin", "w+b");
-	FILE *fp_txt = fopen("a.out.txt", "w+b");
-	size_t dimensions = 2;
-	fwrite(&dimensions, sizeof(dimensions), 1, fp);
 	std::default_random_engine generator;
 	for (size_t centre = 0; centre < centers; centre++)
 		{
 		std::normal_distribution<float> x_distribution(centroid[centre].x, 0.005 * centre);
 		std::normal_distribution<float> y_distribution(centroid[centre].y, 0.005 * centre);
-		for (size_t point = 0; point < points; point++)
-			{
-			float x = x_distribution(generator);
-			float y = y_distribution(generator);
-
-			fwrite(&x, sizeof(x), 1, fp);
-			fwrite(&y, sizeof(y), 1, fp);
-			fprintf(fp_txt, "%f %f\n", x, y);
-			}
+		for (size_t which = 0; which < points; which++)
+			data_point.push_back(point(x_distribution(generator), y_distribution(generator)));
 		}
 
+	/*
+		Shuffle the points
+	*/
+	std::shuffle(data_point.begin(), data_point.end(), generator);
+
+	/*
+		Write the points to a file
+	*/
+	FILE *fp = fopen("a.out.bin", "w+b");
+	FILE *fp_txt = fopen("a.out.txt", "w+b");
+	size_t dimensions = 2;
+	fwrite(&dimensions, sizeof(dimensions), 1, fp);
+	for (auto const &single : data_point)
+		{
+		float x = single.x;
+		float y = single.y;
+
+		fwrite(&x, sizeof(x), 1, fp);
+		fwrite(&y, sizeof(y), 1, fp);
+		fprintf(fp_txt, "%f %f\n", x, y);
+		}
 	fclose(fp);
 	fclose(fp_txt);
+
+	/*
+		Done
+	*/
 	return 0;
 	}
