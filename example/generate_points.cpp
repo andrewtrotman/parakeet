@@ -33,13 +33,26 @@ class point
 std::vector<point> centroid;
 
 /*
+	USAGE()
+	-------
+*/
+int usage(const char *exename)
+	{
+	printf("Usage: %s <points> <centers>\n", exename);
+	return 1;
+	}
+
+/*
 	MAIN()
 	------
 */
 int main(int argc, const char *argv[])
 	{
-	size_t points = 1000;
-	size_t centers = 500;
+	if (argc != 3)
+		exit(usage(argv[0]));
+
+	size_t points = atol(argv[1]);
+	size_t centers = atol(argv[2]);
 
 	/*
 		Generate the centers
