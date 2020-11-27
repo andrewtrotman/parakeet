@@ -15,6 +15,7 @@
 #include <iostream>
 #include <unordered_map>
 
+#include "timer.h"
 #include "k_tree.h"
 #include "fast_double_parser.h"
 
@@ -274,6 +275,7 @@ int add_list_to_tree(k_tree::allocator *memory, size_t dimensions, std::vector<j
 	{
 	k_tree::k_tree tree(memory, tree_order, dimensions);
 
+	auto timer = JASS::timer::start();
 	/*
 		Add them to the tree
 		Start a bunch of threads to each do some of the work
@@ -294,14 +296,21 @@ int add_list_to_tree(k_tree::allocator *memory, size_t dimensions, std::vector<j
 		thread->join();
 		}
 
+	auto took = JASS::timer::stop(timer);
+	std::cout << "Clustering took:" << took.milliseconds() << "milliseconds\n";
+
 	/*
 		Fix the leaf count value
 	*/
+	timer = JASS::timer::start();
 	tree.normalise_counts();
+	took = JASS::timer::stop(timer);
+	std::cout << "Re-adjustment:" << took.milliseconds() << "milliseconds\n";
 
 	/*
 		Dump the tree to the output file
 	*/
+	timer = JASS::timer::start();
 	std::ofstream outfile(outfilename);
 	if (movie_mode)
 		tree.text_render_movie(outfile);
@@ -311,6 +320,8 @@ int add_list_to_tree(k_tree::allocator *memory, size_t dimensions, std::vector<j
 		outfile << tree;
 		}
 	outfile.close();
+	took = JASS::timer::stop(timer);
+	std::cout << "Serialising:" << took.milliseconds() << "milliseconds\n";
 
 	/*
 		Clean up
@@ -335,6 +346,8 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 
 	k_tree::allocator memory;
 	std::vector<job *> vector_list;
+
+	auto timer = JASS::timer::start();
 
 	/*
 		Read the source file into memory - and check that we got a file
@@ -393,6 +406,9 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 	for (auto &completed : thread_pool_deascii)
 		completed.join();
 
+	auto took = JASS::timer::stop(timer);
+	std::cout << "Reading :" << took.milliseconds() << "milliseconds\n";
+
 	return add_list_to_tree(&memory, dimensions, vector_list, tree_order, outfilename, thread_count, movie_mode);
 	}
 
@@ -411,6 +427,7 @@ int build_bin(char *infilename, size_t tree_order, char *outfilename, size_t thr
 	k_tree::allocator memory;
 	std::vector<job *> vector_list;
 
+	auto timer = JASS::timer::start();
 	/*
 		Read the source file into memory - and check that we got a file
 	*/
@@ -439,7 +456,9 @@ int build_bin(char *infilename, size_t tree_order, char *outfilename, size_t thr
 		count++;
 		}
 
-	std::cout << "Vectors in file: " << count << "\n";
+	auto took = JASS::timer::stop(timer);
+	std::cout << "Reading :" << took.milliseconds() << "milliseconds\n";
+
 	return add_list_to_tree(&memory, dimensions, vector_list, tree_order, outfilename, thread_count, movie_mode);
 	}
 

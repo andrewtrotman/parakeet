@@ -10,6 +10,7 @@ set(SOURCE
 	node.h
 	node.cpp
 	object.h
+	timer.h
 	)
 
 add_library(k_tree_lib ${SOURCE})
