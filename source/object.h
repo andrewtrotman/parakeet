@@ -385,6 +385,8 @@ namespace k_tree
 					o2->vector[loader] = v2[loader];
 					}
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
 				float sum = horizontal_sum(_mm256_loadu_ps(v1));
 //std::cout << "Sum:" << sum << "\n";
 				assert(sum == 36);
@@ -414,6 +416,7 @@ namespace k_tree
 				o1->zero();
 //std::cout << "Zero():" << o1 << "\n";
 				assert(horizontal_sum(_mm256_loadu_ps(o1->vector)) == 0);
+#pragma GCC diagnostic pop
 
 
 				puts("object::PASS\n");
