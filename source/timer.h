@@ -15,6 +15,7 @@
 #include <chrono>
 #include <thread>
 
+#include <assert.h>
 #include <stdint.h>
 
 namespace JASS
@@ -141,6 +142,8 @@ namespace JASS
 			*/
 			static void unittest(void)
 				{
+				#pragma GCC diagnostic push
+				#pragma GCC diagnostic ignored "-Wunused-variable"
 				/*
 					Time about 100 milliseconds
 				*/
@@ -171,6 +174,7 @@ namespace JASS
 					Yay!
 				*/
 				puts("timer::PASSED");
+				#pragma GCC diagnostic pop
 				}
 
 		};

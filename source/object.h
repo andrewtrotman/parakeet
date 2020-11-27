@@ -418,7 +418,6 @@ namespace k_tree
 				assert(horizontal_sum(_mm256_loadu_ps(o1->vector)) == 0);
 #pragma GCC diagnostic pop
 
-
 				puts("object::PASS\n");
 				}
 		};
