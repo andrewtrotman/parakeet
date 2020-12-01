@@ -271,7 +271,7 @@ void thread_ascii_to_float(std::vector<uint8_t *> &lines, std::vector<job *> &ve
 	ADD_LIST_TO_TREE()
 	------------------
 */
-int add_list_to_tree(k_tree::allocator *memory, size_t dimensions, std::vector<job *>&vector_list, size_t tree_order, char *outfilename, size_t thread_count, bool movie_mode)
+int add_list_to_tree(k_tree::allocator *memory, size_t dimensions, std::vector<job *>&vector_list, size_t tree_order, char *outfilename, size_t thread_count, bool movie_mode, bool dump)
 	{
 	k_tree::k_tree tree(memory, tree_order, dimensions);
 
@@ -297,7 +297,7 @@ int add_list_to_tree(k_tree::allocator *memory, size_t dimensions, std::vector<j
 		}
 
 	auto took = JASS::timer::stop(timer);
-	std::cout << "Clustering took:" << took.milliseconds() << " milliseconds\n";
+	std::cout << "D:" << dimensions << " O:" << tree_order << " T:" << thread_count << "  ClusteringTook:" << took.milliseconds() << " milliseconds\n";
 
 	/*
 		Fix the leaf count value
@@ -310,18 +310,21 @@ int add_list_to_tree(k_tree::allocator *memory, size_t dimensions, std::vector<j
 	/*
 		Dump the tree to the output file
 	*/
-	timer = JASS::timer::start();
-	std::ofstream outfile(outfilename);
-	if (movie_mode)
-		tree.text_render_movie(outfile);
-	else
+	if (dump)
 		{
-//		tree.text_render_penultimate(outfile);
-		outfile << tree;
+		timer = JASS::timer::start();
+		std::ofstream outfile(outfilename);
+		if (movie_mode)
+			tree.text_render_movie(outfile);
+		else
+			{
+	//		tree.text_render_penultimate(outfile);
+			outfile << tree;
+			}
+		outfile.close();
+		took = JASS::timer::stop(timer);
+		std::cout << "Serialising:" << took.milliseconds() << " milliseconds\n";
 		}
-	outfile.close();
-	took = JASS::timer::stop(timer);
-	std::cout << "Serialising:" << took.milliseconds() << " milliseconds\n";
 
 	/*
 		Clean up
@@ -409,7 +412,7 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 	auto took = JASS::timer::stop(timer);
 	std::cout << "Reading :" << took.milliseconds() << " milliseconds\n";
 
-	return add_list_to_tree(&memory, dimensions, vector_list, tree_order, outfilename, thread_count, movie_mode);
+	return add_list_to_tree(&memory, dimensions, vector_list, tree_order, outfilename, thread_count, movie_mode, true);
 	}
 
 /*
@@ -420,7 +423,7 @@ int build(char *infilename, size_t tree_order, char *outfilename, size_t thread_
 	<vector<float>>...
 	Where each vectoris of <width> size
 */
-int build_bin(char *infilename, size_t tree_order, char *outfilename, size_t thread_count, bool movie_mode)
+int build_bin(char *infilename, size_t tree_order, char *outfilename, size_t thread_count, bool movie_mode, bool dump)
 	{
 	thread_count = thread_count <= 0 ? 1 : thread_count;
 
@@ -459,7 +462,7 @@ int build_bin(char *infilename, size_t tree_order, char *outfilename, size_t thr
 	auto took = JASS::timer::stop(timer);
 	std::cout << "Reading :" << took.milliseconds() << " milliseconds\n";
 
-	return add_list_to_tree(&memory, dimensions, vector_list, tree_order, outfilename, thread_count, movie_mode);
+	return add_list_to_tree(&memory, dimensions, vector_list, tree_order, outfilename, thread_count, movie_mode, dump);
 	}
 
 /*
@@ -571,7 +574,9 @@ int main(int argc, char *argv[])
 	else if (argc == 5 && strcmp(argv[1], "load") == 0)
 		return load(argv[2], tree_order, argv[4]);
 	else if (argc == 6 && strcmp(argv[1], "build_bin") == 0)
-		return build_bin(argv[2], tree_order, argv[4], atoi(argv[5]), false);
+		return build_bin(argv[2], tree_order, argv[4], atoi(argv[5]), false, true);
+	else if (argc == 6 && strcmp(argv[1], "build_bin_only") == 0)
+		return build_bin(argv[2], tree_order, argv[4], atoi(argv[5]), false, false);
 	else if (argc == 5 && strcmp(argv[1], "movie") == 0)
 		return build(argv[2], tree_order, argv[4], 1, true);
 	else
