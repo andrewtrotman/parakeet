@@ -385,14 +385,16 @@ namespace k_tree
 					o2->vector[loader] = v2[loader];
 					}
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-variable"
+#ifndef _MSC_VER
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Wunused-variable"
+#endif
 				float sum = horizontal_sum(_mm256_loadu_ps(v1));
 //std::cout << "Sum:" << sum << "\n";
 				assert(sum == 36);
 
 
-				float linear = o1->distance_squared_linear(o2);
+				float linear = (float)o1->distance_squared_linear(o2);
 				float simd = o1->distance_squared(o2);
 //std::cout << "Linear:" << linear << " SIMD:" << simd << "\n";
 				assert(simd == linear);
@@ -416,7 +418,9 @@ namespace k_tree
 				o1->zero();
 //std::cout << "Zero():" << o1 << "\n";
 				assert(horizontal_sum(_mm256_loadu_ps(o1->vector)) == 0);
-#pragma GCC diagnostic pop
+#ifndef _MSC_VER
+	#pragma GCC diagnostic pop
+#endif
 
 				puts("object::PASS\n");
 				}

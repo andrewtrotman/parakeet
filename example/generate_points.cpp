@@ -10,13 +10,30 @@
 #include <algorithm>
 
 /*
+	DRAND48()
+	---------
+*/
+#ifdef _MSC_VER
+inline double drand48()
+	{
+	return double(rand())/(RAND_MAX+1.0);
+	}
+#endif
+
+/*
 	CLASS POINT
 	-----------
 */
 class point
 	{
 	public:
-		std::vector<float> point;
+		std::vector<float> data;
+	public:
+		point() :
+			data()
+		{
+		/* Nothing */
+		}
 	};
 
 std::vector<point> centroid;
@@ -54,7 +71,7 @@ int main(int argc, const char *argv[])
 		{
 		point another;
 		for (size_t index = 0; index < dimensions; index++)
-			another.point.push_back(drand48() * 20 - 10);			// generate in the range (-10..10)
+			another.data.push_back((float)(drand48() * 20 - 10));			// generate in the range (-10..10)
 		centroid.push_back(another);
 
 		/*
@@ -65,8 +82,8 @@ int main(int argc, const char *argv[])
 			point location;
 			for (size_t index = 0; index < dimensions; index++)
 				{
-				std::normal_distribution<float> normal_distribution(another.point[index], 0.005 * centre);
-				location.point.push_back(normal_distribution(generator));
+				std::normal_distribution<float> normal_distribution(another.data[index], (float)0.005 * centre);
+				location.data.push_back(normal_distribution(generator));
 				}
 			data_point.push_back(location);
 			}
@@ -84,10 +101,10 @@ int main(int argc, const char *argv[])
 	fwrite(&dimensions, sizeof(dimensions), 1, fp);
 	for (const auto &single : data_point)
 		{
-		for (size_t index = 0; index < single.point.size(); index++)
+		for (size_t index = 0; index < single.data.size(); index++)
 			{
-			fwrite(&single.point[index], sizeof(single.point[index]), 1, fp);
-			fprintf(fp_txt, "%s%f", (index == 0 ? "" : " "), single.point[index]);
+			fwrite(&single.data[index], sizeof(single.data[index]), 1, fp);
+			fprintf(fp_txt, "%s%f", (index == 0 ? "" : " "), single.data[index]);
 			}
 		fprintf(fp_txt, "\n");
 		}
