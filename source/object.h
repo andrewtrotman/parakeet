@@ -10,6 +10,7 @@
 #include <string.h>
 #include <immintrin.h>
 
+#include <atomic>
 #include <iostream>
 
 #include "allocator.h"
@@ -217,9 +218,9 @@ namespace k_tree
 				---------------------------------
 				Return the square of the Euclidean distance between parameters a and b without using SIMD operations
 			*/
-			double distance_squared_linear(const object *b)
+			float distance_squared_linear(const object *b)
 				{
-				double total = 0;
+				float total = 0;
 
 				for (size_t dimension = 0; dimension < dimensions; dimension++)
 					total += (vector[dimension] - b->vector[dimension]) * (vector[dimension] - b->vector[dimension]);

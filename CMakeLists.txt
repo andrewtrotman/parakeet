@@ -18,7 +18,7 @@ message("Build Type:" ${CMAKE_BUILD_TYPE})
 # Set the warning flags based on the compiler
 #
 if(WIN32)
- 	add_definitions("/W3 /nologo")
+ 	add_definitions("/W3 /nologo /arch:AVX512 /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_WARNINGS")
 else()
 	add_definitions("-Wall -march=native")
 endif()

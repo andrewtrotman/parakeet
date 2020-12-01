@@ -185,7 +185,7 @@ int build(char *infilename, size_t tree_order, char *outfilename)
 				pos++;
 			if (*pos == '\0')
 				break;
-			float value = atof(pos);
+			float value = (float)atof(pos);
 			while (*pos != '\0' && !isspace(*pos))
 				pos++;
 			objectionable->vector[dimension] = value;

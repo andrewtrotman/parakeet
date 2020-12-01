@@ -106,9 +106,9 @@ namespace k_tree
 			object &data = *initial.new_object(&memory);
 			for (size_t dimension = 0; dimension < initial.dimensions; dimension++)
 				if (which < 8)
-					data.vector[dimension] = (rand() % 20) / 10.0;
+					data.vector[dimension] = (rand() % 20) / (float)10.0;
 				else
-					data.vector[dimension] = ((rand() % 20) + 70) / 10.0;
+					data.vector[dimension] = ((rand() % 20) + 70) / (float)10.0;
 
 std::cout << "-----------> " << data << "\n";
 			tree.push_back(&memory, &data);

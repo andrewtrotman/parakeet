@@ -5,6 +5,7 @@
 	Released under the 2-clause BSD license (See:https://en.wikipedia.org/wiki/BSD_licenses)
 */
 #include <stdint.h>
+#include <malloc.h>
 
 #include <limits>
 #include <iomanip>
@@ -115,10 +116,10 @@ namespace k_tree
 		for (size_t which = 0; which < children; which++)
 			{
 			leaves_below_this_point += child[which]->leaves_below_this_point;
-			centroid->fused_multiply_add(*child[which]->centroid, child[which]->leaves_below_this_point);
+			centroid->fused_multiply_add(*child[which]->centroid, (float)child[which]->leaves_below_this_point);
 			}
 
-		*centroid /= leaves_below_this_point;
+		*centroid /= (float)leaves_below_this_point;
 		}
 
 	/*
@@ -129,7 +130,11 @@ namespace k_tree
 	void node::split(allocator *memory, node **child_1_out, node **child_2_out) const
 		{
 		size_t place_in;
+#ifdef _MSC_VER
+		size_t *assignment = (size_t *)alloca(sizeof(*assignment * (max_children + 1)));
+#else
 		size_t assignment[max_children + 1];
+#endif
 		size_t first_cluster_size;
 		size_t second_cluster_size;
 		float old_sum_distance = std::numeric_limits<float>::max();;
@@ -220,8 +225,8 @@ namespace k_tree
 			/*
 				Rebuild then centroids: then average
 			*/
-			*centroid_1 /= first_cluster_size;
-			*centroid_2 /= second_cluster_size;
+			*centroid_1 /= (float)first_cluster_size;
+			*centroid_2 /= (float)second_cluster_size;
 			}
 
 		/*
@@ -308,7 +313,7 @@ namespace k_tree
 			Note that there is an accumulation of rounding errors.  If you want to compute the mean at each node each time then use this line instead:
 				compute_mean();
 		*/
-		centroid->fused_subtract_divide(*data, leaves_below_this_point + 1);
+		centroid->fused_subtract_divide(*data, (float)(leaves_below_this_point + 1));
 		leaves_below_this_point++;
 
 		/*
