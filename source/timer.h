@@ -142,8 +142,10 @@ namespace JASS
 			*/
 			static void unittest(void)
 				{
-				#pragma GCC diagnostic push
-				#pragma GCC diagnostic ignored "-Wunused-variable"
+				#ifndef _MSC_VER
+					#pragma GCC diagnostic push
+					#pragma GCC diagnostic ignored "-Wunused-variable"
+				#endif
 				/*
 					Time about 100 milliseconds
 				*/
@@ -174,7 +176,9 @@ namespace JASS
 					Yay!
 				*/
 				puts("timer::PASSED");
-				#pragma GCC diagnostic pop
+				#ifndef _MSC_VER
+					#pragma GCC diagnostic pop
+				#endif
 				}
 
 		};

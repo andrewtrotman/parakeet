@@ -10,6 +10,7 @@
 #include <thread>
 #include <limits>
 #include <iomanip>
+#include <algorithm>
 
 #include "k_tree.h"
 #include "node.h"
@@ -155,12 +156,12 @@ namespace k_tree
 			if (current_child != nullptr)					// Make sure child[which] has been written to (because children might be updated but child[which] has not yet been updated
 				{
 				new_leaf_count += current_child->leaves_below_this_point;
-				centroid->fused_multiply_add(*current_child->centroid, current_child->leaves_below_this_point);
+				centroid->fused_multiply_add(*current_child->centroid, (float)current_child->leaves_below_this_point);
 				}
 			}
 
 		leaves_below_this_point = new_leaf_count;
-		*centroid /= new_leaf_count;
+		*centroid /= (float)new_leaf_count;
 		}
 
 	/*
@@ -188,15 +189,21 @@ namespace k_tree
 			Each time we move the center we keep the delta (in delta[0] and delta[1]), and add that to the estimated distance
 			each time.
 		*/
+#ifdef _MSC_VER
+		size_t *assignment = (size_t *)alloca(sizeof(*assignment) * (max_children + 1));
+		float *distance_to_assignment = (float *)alloca(sizeof(*distance_to_assignment) * (max_children + 1));		// this is an over estimate of the distance (i.e d <= distance_to_other)
+		float *distance_to_other = (float *)alloca(sizeof(*distance_to_other) * (max_children + 1));			// this is and under estimate of the distance (i.e d >= distance_to_other)
+#else
 		size_t assignment[max_children + 1];
 		float distance_to_assignment[max_children + 1];		// this is an over estimate of the distance (i.e d <= distance_to_other)
-float distance_to_other[max_children + 1];			// this is and under estimate of the distance (i.e d >= distance_to_other)
+		float distance_to_other[max_children + 1];			// this is and under estimate of the distance (i.e d >= distance_to_other)
+#endif
 
 		for (size_t which = 0; which <= max_children; which++)
 			{
 			assignment[which] = 0;
 			distance_to_assignment[which] = std::numeric_limits<float>::max();
-distance_to_other[which] = 0;
+			distance_to_other[which] = 0;
 			}
 
 		/*
@@ -244,7 +251,7 @@ distance_to_other[which] = 0;
 				if d(c1,c2) >= 2d(x,c1) then d(x,c2) > d(x,c1)
 				in other words, if the distance from the data point to the first cluster is less than half the distance between the clusters then the first cluster must be the closest
 			*/
-			float half_distance_between_centroids = sqrt(centroid[0]->distance_squared(centroid[1])) / 2.0;
+			float half_distance_between_centroids = sqrt(centroid[0]->distance_squared(centroid[1])) / (float)2.0;
 			half_distance_between_centroids *= half_distance_between_centroids;
 
 			old_sum_distance = new_sum_distance;
@@ -310,7 +317,7 @@ distance_to_other[which] = 0;
 				Build the centroids: then average
 			*/
 			for (size_t which = 0; which < 2; which++)
-				*new_centroid[which] /= cluster_size[which];
+				*new_centroid[which] /= (float)cluster_size[which];
 
 			/*
 				Compute the centroid shifts
@@ -583,7 +590,7 @@ distance_to_other[which] = 0;
 				Note that there is an accumulation of rounding errors.  If you want to compute the mean at each node each time then use this line instead:
 					compute_mean();
 			*/
-			centroid->fused_subtract_divide(*data, leaves_below_this_point + 1);
+			centroid->fused_subtract_divide(*data, (float)(leaves_below_this_point + 1));
 			leaves_below_this_point++;
 			}
 

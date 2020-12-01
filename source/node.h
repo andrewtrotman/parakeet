@@ -96,7 +96,7 @@ namespace k_tree
 				};
 
 		private:
-			static constexpr float float_resolution = 0.000001;														// floats his close are considered equal
+			static constexpr float float_resolution = (float)0.000001;														// floats his close are considered equal
 
 		public:
 			std::atomic<split_state> state;			// is the node undergoing split or has it already been split?

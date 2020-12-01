@@ -255,7 +255,7 @@ void thread_ascii_to_float(std::vector<uint8_t *> &lines, std::vector<job *> &ve
 			if (isok)
 				value = (float)value_as_double;
 			else
-				value = atof(pos);
+				value = (float)atof(pos);
 			while (*pos != '\0' && !isspace(*pos))
 				pos++;
 			objectionable->vector[dimension] = value;
