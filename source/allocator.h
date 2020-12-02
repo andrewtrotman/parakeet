@@ -18,6 +18,7 @@ namespace k_tree
 	class allocator
 		{
 		private:
+			std::atomic<size_t> bytes_allocated;		// the total number of bytes allocated
 			std::vector<uint8_t *> blocks;				// a list of the block we have allocated
 			uint8_t *chunk;									// the current chunk we are allocating from
 			size_t size;										// the size of the current block (in bytes)
@@ -31,6 +32,7 @@ namespace k_tree
 				Constructor
 			*/
 			allocator(size_t block_size = 1'073'741'824 /* 1GB */, bool use_global_malloc = false) :
+				bytes_allocated(0),
 				chunk(nullptr),
 				size(block_size),
 				used(block_size),
@@ -69,6 +71,7 @@ namespace k_tree
 						chunk = new uint8_t[size];
 						blocks.push_back(chunk);
 						used = 0;
+						bytes_allocated += size;
 						}
 
 					uint8_t *start = chunk + used;
