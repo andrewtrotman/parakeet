@@ -101,6 +101,13 @@ namespace k_tree
 			std::ostream &text_render_penultimate(std::ostream &stream) const;
 
 			/*
+				K_TREE::TEXT_RENDER_PENULTIMATE_AND_BELOW()
+				-------------------------------------------
+				Dump the level above the leaves (the bottom-level clusters) and the leaves
+			*/
+			std::ostream &text_render_penultimate_and_below(std::ostream &stream) const;
+
+			/*
 				K_TREE::UNITTEST()
 				------------------
 				Test the class

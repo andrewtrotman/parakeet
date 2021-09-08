@@ -708,6 +708,24 @@ namespace k_tree
 		}
 
 	/*
+		NODE::TEXT_RENDER_PENULTIMATE_AND_BELOW()
+		-----------------------------------------
+		Dump the level above the leaves (the bottom-level clusters)
+	*/
+	std::ostream &node::text_render_penultimate_and_below(std::ostream &stream) const
+		{
+
+		if (children == 0 || child[0].load()->isleaf())
+			stream << (children.load() < max_children ? children.load() : max_children) << ' ' << leaves_below_this_point << ' ' << *centroid << "\n";
+
+		size_t child_count = children.load() < max_children ? children.load() : max_children;
+		for (size_t who = 0; who < child_count; who++)
+			child[who].load()->text_render_penultimate_and_below(stream);
+
+		return stream;
+		}
+
+	/*
 		NODE::TEXT_RENDER_MOVIE()
 		-------------------------
 		Serialise the object in a human-readable format and down the given stream.  The first character is a symbol representing the depth of the tree, then the coordinate
