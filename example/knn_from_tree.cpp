@@ -16,6 +16,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <algorithm>
+
 #include "disk.h"
 #include "cluster.h"
 #include "allocator.h"
@@ -93,6 +95,7 @@ void read_tree(const char *filename, k_tree::allocator &memory, cluster_set &spa
 		Note that the input format starts with <children> and <leaves_below> and therefore has 2 more values in it than the dimensionality of the vector
 	*/
 	size_t dimensions = dimensionality((char *)lines[0]) - 2;
+	k_tree::object *object_template = k_tree::object::snag(&memory, dimensions, nullptr);
 
 	/*
 		The first line in the file must be a node, it then specifies how many children it has
@@ -104,7 +107,7 @@ void read_tree(const char *filename, k_tree::allocator &memory, cluster_set &spa
 
 		std::vector<float> *point = text_to_vector(children, dimensions, (char *)lines[line]);
 		cluster *point_of_interest = new cluster();
-		point_of_interest->centroid = k_tree::object::snag(&memory, dimensions, &(*point)[0]);
+		point_of_interest->centroid = object_template->new_object(&memory, dimensions, &(*point)[0]);
 		point_of_interest->point.resize(children);
 		if (children == 0)
 			exit(printf("This data isn't clusters, is it a tree?\n"));
@@ -113,7 +116,7 @@ void read_tree(const char *filename, k_tree::allocator &memory, cluster_set &spa
 			{
 			size_t zero;
 			std::vector<float> *point = text_to_vector(zero, dimensions, (char *)lines[line + 1]);
-			point_of_interest->point[child] = k_tree::object::snag(&memory, dimensions, &(*point)[0]);
+			point_of_interest->point[child] = object_template->new_object(&memory, dimensions, &(*point)[0]);
 			if (zero != 0)
 				exit(printf("This data isn't clusters, is it a tree?\n"));
 			}
@@ -141,12 +144,31 @@ void read_queries(const char *filename, k_tree::allocator &memory, std::vector<k
 		Count the dimensionality of the vectors
 	*/
 	size_t dimensions = dimensionality((char *)lines[0]);
+	k_tree::object *object_template = k_tree::object::snag(&memory, dimensions, nullptr);
 
+	/*
+		Read the queries
+	*/
 	for (size_t which = 0; which < lines.size(); which++)
 		{
 		std::vector<float> *point = text_to_vector(dimensions, (char *)lines[which]);
-		query_list.push_back(k_tree::object::snag(&memory, dimensions, &(*point)[0]));
+		query_list.push_back(object_template->new_object(&memory, dimensions, &(*point)[0]));
 		}
+	}
+
+/*
+	RANK_CLUSTERS()
+	---------------
+*/
+void rank_clusters(std::vector<cluster::distance> &ordering, cluster_set space, k_tree::object *query)
+	{
+	for (const auto point : space)
+		{
+		float distance = point->centroid->distance_squared(query);
+		ordering.push_back(cluster::distance(point, distance));
+		}
+
+	std::sort(ordering.begin(), ordering.end());
 	}
 
 /*
@@ -207,8 +229,8 @@ int main(int argc, const char *argv[])
 	/*
 		Dump the tree
 	*/
-	text_render(space);
-	std::cout << "\n\n";
+//	text_render(space);
+//	std::cout << "\n\n";
 
 	/*
 		Read the queries
@@ -218,7 +240,19 @@ int main(int argc, const char *argv[])
 	/*
 		Dump the queries
 	*/
-	text_render(query_list);
+//	text_render(query_list);
+//	std::cout << "\n\n";
+
+	for (const auto &query : query_list)
+		{
+		std::vector<cluster::distance> ordering;
+		std::cout << "Q:" << *query << "\n";
+		rank_clusters(ordering, space, query);
+		for (const auto &point : ordering)
+			{
+			std::cout << point.size << " : " << *point.cluster->centroid << "\n";
+			}
+		}
 
 	return 0;
 	}

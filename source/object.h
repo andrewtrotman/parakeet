@@ -59,7 +59,9 @@ namespace k_tree
 			/*
 				OBJECT::SNAG()
 				--------------
-				Turn an array of floats into one of the objects
+				Turn an array of floats into one of the objects.
+				*NOTE*: if the data being pointed to is not of the correct width for AVX512 of AVX2
+				the many of the routines this class supports WILL NOT WORK!
 			*/
 			static object *snag(allocator *allocator, size_t dimensions, float *data)
 				{
@@ -68,6 +70,20 @@ namespace k_tree
 				another->vector = data;
 				
 				return another;
+				}
+
+			/*
+				OBJECT::NEW_OBJECT()
+				--------------------
+				Return a new object placement-constructed in memory provided by the allocator
+				and copy the vector (data) of dimensionality (dimensions) into it.
+			*/
+			object *new_object(allocator *allocator, size_t dimensions, float *data)
+				{
+				object *answer = new_object(allocator);
+				memcpy(answer->vector, data, sizeof(*data) * dimensions);
+
+				return answer;
 				}
 
 			/*
