@@ -162,13 +162,23 @@ void read_queries(const char *filename, k_tree::allocator &memory, std::vector<k
 */
 void rank_clusters(std::vector<cluster::distance> &ordering, cluster_set space, k_tree::object *query)
 	{
+	/*
+		Find the distance to each cluster
+	*/
 	for (const auto point : space)
 		{
 		float distance = point->centroid->distance_squared(query);
 		ordering.push_back(cluster::distance(point, distance));
 		}
 
+	/*
+		Rank the clusters from closest to futherest away
+	*/
 	std::sort(ordering.begin(), ordering.end());
+
+	/*
+		TO DO: Rank the points within the clusters starting with the nearest cluster
+	*/
 	}
 
 /*
