@@ -212,8 +212,8 @@ int add_list_to_tree(k_tree::allocator *memory, size_t dimensions, std::vector<j
 		else
 			{
 //			tree.text_render_penultimate(outfile);
-			tree.text_render_penultimate_and_below(outfile);
-//			outfile << tree;
+//			tree.text_render_penultimate_and_below(outfile);
+			outfile << tree;
 			}
 		outfile.close();
 		took = JASS::timer::stop(timer);
