@@ -265,7 +265,7 @@ void text_render(std::vector<k_tree::object *> query_list)
 */
 int usage(const char *exename)
 	{
-	printf("%s <tree> <query>\n", exename);
+	printf("%s <tree> <query> <k>\n", exename);
 	return 1;
 	}
 
@@ -282,7 +282,11 @@ int main(int argc, const char *argv[])
 	/*
 		Check the command line parameters
 	*/
-	if (argc != 3)
+	if (argc != 4)
+		exit(usage(argv[0]));
+
+	size_t k = atoi(argv[3]);
+	if (k == 0)
 		exit(usage(argv[0]));
 
 	/*
@@ -314,7 +318,7 @@ int main(int argc, const char *argv[])
 		rank_clusters(cluster_ordering, space, query);
 
 		std::vector<cluster::point_distance> point_ordering;
-		rank_points(point_ordering, cluster_ordering, query, 10);
+		rank_points(point_ordering, cluster_ordering, query, k);
 		for (const auto &point : point_ordering)
 			std::cout << "    " << point.size << " : " << *point.point << "\n";
 		}
