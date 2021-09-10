@@ -175,10 +175,64 @@ void rank_clusters(std::vector<cluster::distance> &ordering, cluster_set space, 
 		Rank the clusters from closest to futherest away
 	*/
 	std::sort(ordering.begin(), ordering.end());
+	}
+
+/*
+	RANK_POINTS()
+	-------------
+*/
+void rank_points(std::vector<cluster::point_distance> &answer, std::vector<cluster::distance> &ordering, k_tree::object *query, size_t k)
+	{
+	/*
+		Iterate over all the clusters
+	*/
+	float largest_in_answer_set = std::numeric_limits<float>::max();
+	for (const auto &cluster : ordering)
+		{
+		/*
+			Iterate over each point in the cluster
+		*/
+		float smallest_in_group = std::numeric_limits<float>::max();;
+		for (const auto &point : cluster.cluster->point)
+			{
+			float distance = point->distance_squared(query);
+			/*
+				Might we be in the top k?
+			*/
+			if (distance < largest_in_answer_set)
+				answer.push_back(cluster::point_distance(point, distance));
+
+			/*
+				Compute the smallest distance for point in the cluster to the query point
+			*/
+			if (distance < smallest_in_group)
+				smallest_in_group = distance;
+			}
+
+		/*
+			Put the top-k in order
+		*/
+		std::sort(answer.begin(), answer.end());
+
+		/*
+			If no points in this cluster got into the top-k the we stop as its unlikely
+			that any point in a cluster further away will get into the top k
+		*/
+		if (smallest_in_group > largest_in_answer_set)
+			break;		// All other points should be too far away to include
+
+		/*
+			Recompute the distance of the k-th point to the query
+		*/
+		if (answer.size() > k)
+			largest_in_answer_set = answer[k].size;
+		}
 
 	/*
-		TO DO: Rank the points within the clusters starting with the nearest cluster
+		Return no more than k results
 	*/
+	if (answer.size() > k)
+		answer.resize(k);
 	}
 
 /*
@@ -255,13 +309,14 @@ int main(int argc, const char *argv[])
 
 	for (const auto &query : query_list)
 		{
-		std::vector<cluster::distance> ordering;
+		std::vector<cluster::distance> cluster_ordering;
 		std::cout << "Q:" << *query << "\n";
-		rank_clusters(ordering, space, query);
-		for (const auto &point : ordering)
-			{
-			std::cout << point.size << " : " << *point.cluster->centroid << "\n";
-			}
+		rank_clusters(cluster_ordering, space, query);
+
+		std::vector<cluster::point_distance> point_ordering;
+		rank_points(point_ordering, cluster_ordering, query, 10);
+		for (const auto &point : point_ordering)
+			std::cout << "    " << point.size << " : " << *point.point << "\n";
 		}
 
 	return 0;

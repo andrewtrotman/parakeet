@@ -30,6 +30,33 @@ class cluster
 					return size < with.size;
 					}
 			};
+			
+		class point_distance
+			{
+			public:
+				k_tree::object *point;
+				float size;
+
+			public:
+				point_distance(k_tree::object *point, float size) :
+					point(point),
+					size(size)
+					{
+					/* Nothing */
+					}
+				point_distance() :
+					point(nullptr),
+					size(std::numeric_limits<float>::max())
+					{
+					/* Nothing */
+					}
+
+				bool operator<(const point_distance &with) const
+					{
+					return size < with.size;
+					}
+			};
+
 	public:
 		k_tree::object *centroid;
 		std::vector<k_tree::object *> point;
